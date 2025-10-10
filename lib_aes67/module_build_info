@@ -1,0 +1,22 @@
+VERSION = 0.0.1
+
+DEPENDENT_MODULES = lib_xtcp(>=6.2.0) lib_ethernet(>=3.5.0)
+
+MODULE_XCC_FLAGS = $(XCC_FLAGS) -DXTCP_STACK_LWIP=1 
+
+OPTIONAL_HEADERS += aes67.h
+
+EXPORT_INCLUDE_DIRS = api
+
+SOURCE_DIRS = src src/ptp src/util src/aes67 src/rtp src/sap src/media_clock_and_control src/audio_buffering
+
+INCLUDE_DIRS = $(EXPORT_INCLUDE_DIRS) $(SOURCE_DIRS)
+
+XCC_FLAGS_aes67_media_clock_server.xc = $(XCC_FLAGS) -g -O3
+XCC_FLAGS_aes67_rtp_depacketizer.c = $(XCC_FLAGS) -O3
+XCC_FLAGS_aes67_manager.xc = $(XCC_FLAGS) -g -O0
+XCC_FLAGS_aes67_xfifo.c = $(XCC_FLAGS) -O3
+
+XCC_FLAGS_ptp.xc = $(XCC_FLAGS) -g -O0
+XCC_FLAGS_ptp_server.xc = $(XCC_FLAGS) -g -O0
+
