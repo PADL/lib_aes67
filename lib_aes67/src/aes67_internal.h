@@ -87,17 +87,11 @@ static inline int is_valid_sender_id(int32_t id) {
     return id >= 0 && id < NUM_AES67_SENDERS;
 }
 
-typedef enum _aes67_sender_state {
-    AES67_SENDER_STATE_DISABLED = 0,
-    AES67_SENDER_STATE_POTENTIAL,
-    AES67_SENDER_STATE_ENABLED,
-} aes67_sender_state;
-
-typedef enum _aes67_receiver_state {
-    AES67_RECEIVER_STATE_DISABLED = 0,
-    AES67_RECEIVER_STATE_POTENTIAL,
-    AES67_RECEIVER_STATE_ENABLED,
-} aes67_receiver_state;
+typedef enum _aes67_stream_state {
+    AES67_STREAM_STATE_DISABLED = 0,
+    AES67_STREAM_STATE_POTENTIAL,
+    AES67_STREAM_STATE_ENABLED,
+} aes67_stream_state_t;
 
 typedef enum _aes67_media_clock_state {
     AES67_MEDIA_CLOCK_STATE_DISABLED = 0,

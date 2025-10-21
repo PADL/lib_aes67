@@ -25,12 +25,12 @@ static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
         aes67_sender_t &sender = senders[id];
 
         switch (stream_info.state) {
-        case AES67_SENDER_STATE_DISABLED:
+        case AES67_STREAM_STATE_DISABLED:
             sender.socket.fd = -1;
             sender.sample_count = 0;  // Reset accumulator when disabling
             sender.pending_ts = 0;    // Reset pending timestamp
             break;
-        case AES67_SENDER_STATE_ENABLED:
+        case AES67_STREAM_STATE_ENABLED:
             if (sender.socket.fd != -1)
                 break;
             sender.socket.fd = rtp_tx_socket;

@@ -71,7 +71,7 @@ static void open_receiver_stream(aes67_stream_info_t *stream_info,
         aes67_audio_fifo_enable(&receiver->fifos[ch]);
 
     // word writes are atomic, so safe to update
-    stream_info->state = AES67_RECEIVER_STATE_ENABLED;
+    stream_info->state = AES67_STREAM_STATE_ENABLED;
 }
 
 aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
@@ -88,7 +88,7 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     else if ((packet->payload_length % frame_size) != 0)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    if (stream_info->state != AES67_RECEIVER_STATE_ENABLED)
+    if (stream_info->state != AES67_STREAM_STATE_ENABLED)
         open_receiver_stream(stream_info, receiver, packet);
 
     if (!aes67_rtp_update_sequence(&receiver->sequence_state, packet->sequence))
@@ -144,7 +144,7 @@ static void pull_samples(int32_t id,
     if (used_channels > AES67_MAX_CHANNELS_PER_RECEIVER)
         used_channels = AES67_MAX_CHANNELS_PER_RECEIVER;
 
-    if (stream_info->state == AES67_RECEIVER_STATE_ENABLED) {
+    if (stream_info->state == AES67_STREAM_STATE_ENABLED) {
         for (size_t ch = 0; ch < used_channels && output_index < len; ch++) {
             output_buffer[output_index] = aes67_audio_fifo_pull_sample(
                 &receivers[id].fifos[ch], local_timestamp, &valid);

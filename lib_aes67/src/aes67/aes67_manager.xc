@@ -48,7 +48,7 @@ static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
                                          const aes67_sdp_t &sdp) {
     ip4_addr_t ipv4_addr;
 
-    stream_info.state = AES67_RECEIVER_STATE_POTENTIAL;
+    stream_info.state = AES67_STREAM_STATE_POTENTIAL;
 
     switch (sdp.encoding) {
     case AES67_ENCODING_L16:

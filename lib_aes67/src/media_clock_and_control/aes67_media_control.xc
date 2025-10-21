@@ -102,12 +102,12 @@ handle_subscription_control_command(client xtcp_if i_xtcp,
 
     switch (command) {
     case AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE:
-        if (stream_info.state == AES67_RECEIVER_STATE_ENABLED)
+        if (stream_info.state == AES67_STREAM_STATE_ENABLED)
             return AES67_STATUS_ALREADY_SUBSCRIBED;
-        stream_info.state = AES67_RECEIVER_STATE_POTENTIAL;
+        stream_info.state = AES67_STREAM_STATE_POTENTIAL;
         [[fallthrough]];
     case AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE:
-        if (stream_info.state == AES67_RECEIVER_STATE_DISABLED)
+        if (stream_info.state == AES67_STREAM_STATE_DISABLED)
             return AES67_STATUS_NOT_SUBSCRIBED;
         if (command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
             leave_receiver_stream(i_xtcp, receiver_streams[id]);
@@ -122,14 +122,14 @@ handle_subscription_control_command(client xtcp_if i_xtcp,
         join_receiver_stream(i_xtcp, stream_info);
         memcpy(&receiver_streams[id], &stream_info, sizeof(stream_info));
         if (gm_changed)
-            stream_info.state = AES67_RECEIVER_STATE_POTENTIAL;
+            stream_info.state = AES67_STREAM_STATE_POTENTIAL;
         break;
     case AES67_MEDIA_CONTROL_COMMAND_UNSUBSCRIBE:
-        if (stream_info.state == AES67_RECEIVER_STATE_DISABLED)
+        if (stream_info.state == AES67_STREAM_STATE_DISABLED)
             return AES67_STATUS_NOT_SUBSCRIBED;
         leave_receiver_stream(i_xtcp, stream_info);
         reset_stream_info(receiver_streams[id]);
-        stream_info.state = AES67_RECEIVER_STATE_DISABLED;
+        stream_info.state = AES67_STREAM_STATE_DISABLED;
         break;
     }
 
@@ -183,8 +183,8 @@ void aes67_media_control(chanend media_control, client xtcp_if i_xtcp) {
         aes67_stream_info_t stream_info;
 
         media_control :> stream_info;
-        assert(stream_info.state == AES67_SENDER_STATE_POTENTIAL);
-        stream_info.state = AES67_SENDER_STATE_ENABLED;
+        assert(stream_info.state == AES67_STREAM_STATE_POTENTIAL);
+        stream_info.state = AES67_STREAM_STATE_ENABLED;
         sender_streams[stream_info.stream_id] = stream_info;
         break;
     case AES67_MEDIA_CONTROL_COMMAND_STOP_STREAMING:

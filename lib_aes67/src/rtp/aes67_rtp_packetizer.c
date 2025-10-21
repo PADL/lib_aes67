@@ -82,7 +82,7 @@ aes67_status_t aes67_send_rtp_packet(unsigned i_xtcp,
                                      const uint32_t *samples,
                                      size_t len,
                                      uint32_t timestamp) {
-    if (stream_info->state != AES67_SENDER_STATE_ENABLED ||
+    if (stream_info->state != AES67_STREAM_STATE_ENABLED ||
         sender->socket.fd == -1)
         return AES67_STREAM_NOT_STREAMING;
 
