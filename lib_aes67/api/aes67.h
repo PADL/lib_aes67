@@ -3,6 +3,10 @@
 
 #pragma once
 
+/*
+ * AES67 stack for XMOS
+ */
+
 #include <stdint.h>
 #include <xtcp.h>
 #include <ptp.h>
@@ -156,16 +160,18 @@ void aes67_io_task(chanend ?ptp_svr,
 // depacketizer
 void aes67_rtp_receiver(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend buf_ctl);
 
-void aes67_get_receiver_samples(int32_t id,
-                                ARRAY_OF_SIZE(uint32_t, samples, len),
-                                size_t len,
-                                uint32_t local_timestamp);
+void
+aes67_get_receiver_samples(int32_t id,
+                           ARRAY_OF_SIZE(uint32_t, samples, len),
+                           size_t len,
+                           uint32_t local_timestamp);
 
 // this must be called from the same tile as aes67_rtp_receiver() as it uses
 // shared memory
-void aes67_get_all_receiver_samples(ARRAY_OF_SIZE(uint32_t, samples, len),
-                                    size_t len,
-                                    uint32_t local_timestamp);
+void
+aes67_get_all_receiver_samples(ARRAY_OF_SIZE(uint32_t, samples, len),
+                               size_t len,
+                               uint32_t local_timestamp);
 
 // packetizer
 void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend media);
@@ -176,8 +182,9 @@ void aes67_init_sender_buffers(void);
 // submit up to a complete packet's worth of samples
 // can call multiple times to fill buffer
 // samples should be ordered by channel first, then frame
-void aes67_submit_sender_samples(chanend media,
-                                 int32_t id,
-                                 ARRAY_OF_SIZE(uint32_t, samples, len),
-                                 size_t len,
-                                 uint32_t timestamp);
+void
+aes67_submit_sender_samples(chanend media,
+                            int32_t id,
+                            ARRAY_OF_SIZE(uint32_t, samples, len),
+                            size_t len,
+                            uint32_t timestamp);
