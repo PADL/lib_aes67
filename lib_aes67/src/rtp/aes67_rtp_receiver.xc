@@ -70,12 +70,15 @@ static void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
                     aes67_audio_fifo_disable(&receivers[id].fifos[ch]);
             }
             break;
-        case AES67_STREAM_STATE_POTENTIAL:
-            [[fallthrough]];
         case AES67_STREAM_STATE_ENABLED:
             if (receiver_socket.fd == -1)
                 aes67_open_receiver(i_xtcp, stream_info, id);
             break;
+        case AES67_STREAM_STATE_POTENTIAL:
+            fail("potential state invalid for sender stream");
+            break;
+        case AES67_STREAM_STATE_UPDATING:
+            [[fallthrough]];
         default:
             break;
         }

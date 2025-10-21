@@ -39,6 +39,8 @@ static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
             sender.frames_per_packet = (stream_info.sample_rate / 1000000) * stream_info.packet_time_us;
             sender.samples_per_packet = sender.frames_per_packet * stream_info.channel_count;
             break;
+        case AES67_STREAM_STATE_UPDATING:
+            break;
         default:
             fail("invalid sender stream info state");
             break;

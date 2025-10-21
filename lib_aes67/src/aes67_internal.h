@@ -89,6 +89,7 @@ static inline int is_valid_sender_id(int32_t id) {
 
 typedef enum _aes67_stream_state {
     AES67_STREAM_STATE_DISABLED = 0,
+    AES67_STREAM_STATE_UPDATING,
     AES67_STREAM_STATE_POTENTIAL,
     AES67_STREAM_STATE_ENABLED,
 } aes67_stream_state_t;
@@ -112,7 +113,7 @@ typedef enum _aes67_media_control_command {
 
 typedef struct _aes67_stream_info {
     uint32_t state; // word so atomic write/read
-    uint8_t sample_size;
+    uint8_t sample_size; // this MUST be the first field
     uint8_t payload_type;
     uint8_t channel_count;
     uint8_t stream_id;

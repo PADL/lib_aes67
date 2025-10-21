@@ -85,53 +85,62 @@ log_subscription_control_command(aes67_media_control_command_t command,
         (stream_info.rtp_addr.addr & 0x000000ff) >> 0, stream_info.rtp_port);
 }
 
+// copy the non-atomic elements of a stream_info
 static void
-reset_stream_info(aes67_stream_info_t &stream_info) {
-    memset(&stream_info, 0, sizeof(stream_info));
+copy_stream_info(aes67_stream_info_t &dst_stream_info,
+                 const const aes67_stream_info_t &stream_info) {
+    assert(dst_stream_info.state == AES67_STREAM_STATE_UPDATING);
+    // copy in other fields (non-atomically)
+    memcpy((uint8_t *)&dst_stream_info + sizeof(uint32_t),
+           (const uint8_t *)&stream_info + sizeof(uint32_t),
+           sizeof(stream_info) - sizeof(uint32_t));
 }
 
 static aes67_status_t
-handle_subscription_control_command(client xtcp_if i_xtcp,
-                                    aes67_media_control_command_t command,
-                                    int32_t id,
-                                    aes67_stream_info_t &?_stream_info) {
-    aes67_stream_info_t &stream_info =
-        isnull(_stream_info) ? receiver_streams[id] : _stream_info;
+subscribe_or_resubscribe_stream(client xtcp_if i_xtcp,
+                                aes67_media_control_command_t command,
+                                const aes67_stream_info_t &stream_info) {
+    const int32_t id = stream_info.stream_id;
+    aes67_stream_info_t &dst_stream_info = receiver_streams[id];
 
     log_subscription_control_command(command, stream_info);
 
-    switch (command) {
-    case AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE:
-        if (stream_info.state == AES67_STREAM_STATE_ENABLED)
-            return AES67_STATUS_ALREADY_SUBSCRIBED;
-        stream_info.state = AES67_STREAM_STATE_POTENTIAL;
-        [[fallthrough]];
-    case AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE:
-        if (stream_info.state == AES67_STREAM_STATE_DISABLED)
-            return AES67_STATUS_NOT_SUBSCRIBED;
-        if (command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
-            leave_receiver_stream(i_xtcp, receiver_streams[id]);
-        // check if GM ID changed
-        int gm_changed = 0;
+    // an existing stream can only be resubscribed to, or unsubscribed from
+    if (dst_stream_info.state == AES67_STREAM_STATE_ENABLED &&
+        command != AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
+        return AES67_STATUS_ALREADY_SUBSCRIBED;
+    else if (dst_stream_info.state == AES67_STREAM_STATE_DISABLED &&
+        command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
+        return AES67_STATUS_NOT_SUBSCRIBED;
 
-        if (memcmp(&receiver_streams[id].gm_id, &stream_info.gm_id,
-                   sizeof(stream_info.gm_id)) != 0 ||
-            receiver_streams[id].gm_port != stream_info.gm_port) {
-            gm_changed = 1;
-        }
-        join_receiver_stream(i_xtcp, stream_info);
-        memcpy(&receiver_streams[id], &stream_info, sizeof(stream_info));
-        if (gm_changed)
-            stream_info.state = AES67_STREAM_STATE_POTENTIAL;
-        break;
-    case AES67_MEDIA_CONTROL_COMMAND_UNSUBSCRIBE:
-        if (stream_info.state == AES67_STREAM_STATE_DISABLED)
-            return AES67_STATUS_NOT_SUBSCRIBED;
-        leave_receiver_stream(i_xtcp, stream_info);
-        reset_stream_info(receiver_streams[id]);
-        stream_info.state = AES67_STREAM_STATE_DISABLED;
-        break;
-    }
+    // atomically set the stream state to updating, pending update
+    // (word writes on XMOS are atomic)
+    dst_stream_info.state = AES67_STREAM_STATE_UPDATING;
+
+    if (command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
+        leave_receiver_stream(i_xtcp, dst_stream_info);
+
+    join_receiver_stream(i_xtcp, stream_info);
+
+    copy_stream_info(dst_stream_info, stream_info);
+
+    dst_stream_info.state = AES67_STREAM_STATE_POTENTIAL;
+
+    return AES67_STATUS_OK;
+}
+
+static aes67_status_t
+unsubscribe_stream(client xtcp_if i_xtcp,
+                   const int32_t id) {
+    aes67_stream_info_t &stream_info = receiver_streams[id];
+
+    if (stream_info.state == AES67_STREAM_STATE_DISABLED)
+        return AES67_STATUS_NOT_SUBSCRIBED;
+
+    leave_receiver_stream(i_xtcp, stream_info);
+
+    // atomic write, don't bother clearing other fields
+    stream_info.state = AES67_STREAM_STATE_DISABLED;
 
     return AES67_STATUS_OK;
 }
@@ -154,17 +163,13 @@ void aes67_media_control(chanend media_control, client xtcp_if i_xtcp) {
         aes67_stream_info_t stream_info;
 
         media_control :> stream_info;
-        handle_subscription_control_command(
-            i_xtcp, (aes67_media_control_command_t)control_command,
-            stream_info.stream_id, stream_info);
+        subscribe_or_resubscribe_stream(i_xtcp, control_command, stream_info);
         break;
     case AES67_MEDIA_CONTROL_COMMAND_UNSUBSCRIBE:
         int32_t id;
 
         media_control :> id;
-        handle_subscription_control_command(
-            i_xtcp, (aes67_media_control_command_t)control_command,
-            id, null);
+        unsubscribe_stream(i_xtcp, id);
         break;
     case AES67_MEDIA_CONTROL_COMMAND_GET_CLOCK_INFO:
         media_control <: ptp_media_clock.info;
@@ -183,15 +188,15 @@ void aes67_media_control(chanend media_control, client xtcp_if i_xtcp) {
         aes67_stream_info_t stream_info;
 
         media_control :> stream_info;
-        assert(stream_info.state == AES67_STREAM_STATE_POTENTIAL);
-        stream_info.state = AES67_STREAM_STATE_ENABLED;
-        sender_streams[stream_info.stream_id] = stream_info;
+        sender_streams[stream_info.stream_id].state = AES67_STREAM_STATE_UPDATING;
+        copy_stream_info(sender_streams[stream_info.stream_id], stream_info);
+        sender_streams[stream_info.stream_id].state = AES67_STREAM_STATE_ENABLED;
         break;
     case AES67_MEDIA_CONTROL_COMMAND_STOP_STREAMING:
         int32_t id;
 
         media_control :> id;
-        reset_stream_info(sender_streams[id]); // will set state to DISABLED
+        sender_streams[id].state = AES67_STREAM_STATE_DISABLED;
         break;
     case AES67_MEDIA_CONTROL_COMMAND_SET_SAMPLE_RATE:
         uint32_t rate;

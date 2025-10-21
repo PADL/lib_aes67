@@ -88,8 +88,17 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     else if ((packet->payload_length % frame_size) != 0)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    if (stream_info->state != AES67_STREAM_STATE_ENABLED)
+    switch (stream_info->state) {
+    case AES67_STREAM_STATE_ENABLED:
+        break; // nothing to do, already streaming
+    case AES67_STREAM_STATE_POTENTIAL:
         open_receiver_stream(stream_info, receiver, packet);
+        break;
+    case AES67_STREAM_STATE_UPDATING:
+        /* fallthrough */
+    default:
+        return AES67_STATUS_OK; // discard during update
+    }
 
     if (!aes67_rtp_update_sequence(&receiver->sequence_state, packet->sequence))
         return AES67_STATUS_RTP_PACKET_OUT_OF_SEQUENCE;
@@ -144,15 +153,16 @@ static void pull_samples(int32_t id,
     if (used_channels > AES67_MAX_CHANNELS_PER_RECEIVER)
         used_channels = AES67_MAX_CHANNELS_PER_RECEIVER;
 
-    if (stream_info->state == AES67_STREAM_STATE_ENABLED) {
-        for (size_t ch = 0; ch < used_channels && output_index < len; ch++) {
-            output_buffer[output_index] = aes67_audio_fifo_pull_sample(
-                &receivers[id].fifos[ch], local_timestamp, &valid);
-            if (!valid)
-                output_buffer[output_index] = 0;
+    for (size_t ch = 0; ch < used_channels && output_index < len; ch++) {
+        if (stream_info->state != AES67_STREAM_STATE_ENABLED)
+            break;
 
-            output_index++;
-        }
+        output_buffer[output_index] = aes67_audio_fifo_pull_sample(
+            &receivers[id].fifos[ch], local_timestamp, &valid);
+        if (!valid)
+            output_buffer[output_index] = 0;
+
+        output_index++;
     }
 
     if (output_index <= len) {
