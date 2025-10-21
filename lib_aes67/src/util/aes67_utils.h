@@ -5,6 +5,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <debug_print.h>
 
 #include "aes67_internal.h"
 
