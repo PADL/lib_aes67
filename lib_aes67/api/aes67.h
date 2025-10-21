@@ -157,7 +157,7 @@ void aes67_io_task(chanend ?ptp_svr,
 void aes67_rtp_receiver(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend buf_ctl);
 
 void aes67_get_receiver_samples(int32_t id,
-                                uint32_t *output_buffer,
+                                ARRAY_OF_SIZE(uint32_t, samples, len),
                                 size_t len,
                                 uint32_t local_timestamp);
 
