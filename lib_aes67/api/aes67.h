@@ -7,10 +7,6 @@
 #include <xtcp.h>
 #include <ptp.h>
 
-#ifndef NUM_AES67_RECEIVER_UNITS
-#define NUM_AES67_RECEIVER_UNITS 1
-#endif
-
 #define AES67_MAX_CHANNELS_PER_SENDER 8
 #define AES67_MAX_CHANNELS_PER_RECEIVER 8
 
