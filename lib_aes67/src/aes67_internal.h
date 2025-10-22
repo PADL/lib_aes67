@@ -77,6 +77,22 @@
 #define NANOSECONDS_PER_SECOND (1000000000)
 #define MAX_REASONABLE_DELAY_NS (1000000000UL) // 1 second max delay
 
+#define AES67_DANTE_DSCP_COMPAT 1
+
+#define DSCP_AF41 34 // media traffic
+#define DSCP_EF 46 // PTPv2 (AES67), audio (Dante)
+#define DSCP_CS7 56 // PTPv2 (Dante)
+
+#if AES67_DANTE_DSCP_COMPAT
+#define DSCP_PTP_EVENT DSCP_CS7
+#define DSCP_PTP_GENERAL DSCP_EF
+#define DSCP_RTP DSCP_EF
+#else
+#define DSCP_PTP_EVENT DSCP_EF
+#define DSCP_PTP_GENERAL DSCP_EF
+#define DSCP_RTP DSCP_AF41
+#endif // AES67_DANTE_DSCP_COMPAT
+
 typedef char aes67_session_name_t[256];
 
 static inline int is_valid_receiver_id(int32_t id) {
