@@ -216,8 +216,8 @@ aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
     packet.header.ip.checksum = 0; // Set to 0 for checksum calculation
 
     // Set IP addresses
-    packet.header.ip.src_ip = xtcp_ipaddr_to_uint32(sock.src_addr);
-    packet.header.ip.dest_ip = xtcp_ipaddr_to_uint32(sock.dest_addr);
+    packet.header.ip.src_ip = xtcp_ipaddr_to_network_uint32(sock.src_addr);
+    packet.header.ip.dest_ip = xtcp_ipaddr_to_network_uint32(sock.dest_addr);
 
     // Calculate IP header checksum
     unsafe {

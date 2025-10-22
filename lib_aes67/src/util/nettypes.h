@@ -164,7 +164,7 @@ static inline ip4_addr_t hton_ip4addr(ip4_addr_t addr) {
     return result;
 }
 
-static inline uint32_t xtcp_ipaddr_to_uint32(xtcp_ipaddr_t addr) {
+static inline uint32_t xtcp_ipaddr_to_network_uint32(xtcp_ipaddr_t addr) {
     return htonl((addr[0] << 24) | (addr[1] << 16) | (addr[2] << 8) | addr[3]);
 }
 
