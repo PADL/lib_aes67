@@ -18,7 +18,11 @@ static inline int aes67_is_sender_open(const aes67_sender_t &sender) {
     return sender.socket.fd != -1;
 }
 
-static void aes67_poll_stream_info_changed(uint32_t time, const xtcp_ipaddr_t src_ipaddr, int rtp_tx_socket) {
+static void
+aes67_poll_stream_info_changed(uint32_t time,
+                               const xtcp_ipaddr_t src_ipaddr,
+                               int rtp_tx_socket,
+                               int &src_ipaddr_changed) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_SENDERS; id++) {
         aes67_stream_info_t &stream_info = sender_streams[id];
@@ -31,7 +35,7 @@ static void aes67_poll_stream_info_changed(uint32_t time, const xtcp_ipaddr_t sr
             sender.pending_ts = 0;    // Reset pending timestamp
             break;
         case AES67_STREAM_STATE_ENABLED:
-            if (sender.socket.fd != -1)
+            if (sender.socket.fd != -1 && !src_ipaddr_changed)
                 break;
             COMPILER_BARRIER();
             sender.socket.fd = rtp_tx_socket;
@@ -50,6 +54,9 @@ static void aes67_poll_stream_info_changed(uint32_t time, const xtcp_ipaddr_t sr
             break;
         }
     }
+
+    if (src_ipaddr_changed)
+        src_ipaddr_changed = 0;
 }
 
 #define swapPointer(__dst, __src)        \
@@ -70,6 +77,7 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
     uint32_t time;
     timer t;
     uint8_t src_mac_addr[MACADDR_NUM_BYTES];
+    int src_ipaddr_changed = 0;
     xtcp_ipconfig_t ipconfig;
 
     // Get MAC address from ethernet config interface if available
@@ -113,7 +121,7 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                 break;
 
             case t when timerafter(time) :> void:
-                aes67_poll_stream_info_changed(time, ipconfig.ipaddr, rtp_tx_socket);
+                aes67_poll_stream_info_changed(time, ipconfig.ipaddr, rtp_tx_socket, src_ipaddr_changed);
                 time += XS1_TIMER_HZ;
                 break;
 
@@ -122,8 +130,10 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                 int32_t id;
 
                 event = i_xtcp.get_event(id);
-                if (event == XTCP_IFUP)
+                if (event == XTCP_IFUP) {
                     ipconfig = i_xtcp.get_netif_ipconfig(0);
+                    src_ipaddr_changed = 1;
+                }
                 break;
         }
     }
