@@ -235,14 +235,6 @@ void aes67_rtp_init_sequence(aes67_rtp_sequence_state_t *s, uint16_t seq);
 int aes67_rtp_update_sequence(aes67_rtp_sequence_state_t *s, uint16_t seq);
 
 #if AES67_XMOS
-aes67_status_t aes67_socket_open_recv(CLIENT_INTERFACE(xtcp_if, xtcp),
-                                      REFERENCE_PARAM(aes67_socket_t, sock),
-                                      const char address[],
-                                      uint16_t __port);
-aes67_status_t aes67_socket_open_send(CLIENT_INTERFACE(xtcp_if, xtcp),
-                                      REFERENCE_PARAM(aes67_socket_t, sock),
-                                      const char address[],
-                                      uint16_t __port);
 aes67_status_t aes67_socket_recv(CLIENT_INTERFACE(xtcp_if, xtcp),
                                  REFERENCE_PARAM(const aes67_socket_t, sock),
                                  ARRAY_OF_SIZE(uint8_t, buffer, buffer_size),
@@ -263,14 +255,6 @@ aes67_status_t aes67_socket_send_rtp(const aes67_socket_t *sock, const aes67_rtp
 void aes67_socket_close(CLIENT_INTERFACE(xtcp_if, xtcp),
                         REFERENCE_PARAM(aes67_socket_t, sock));
 #else
-aes67_status_t aes67_socket_open_recv(aes67_socket_t *sock,
-                                      const char *address,
-                                      uint16_t port,
-                                      const char *ifname);
-aes67_status_t aes67_socket_open_send(aes67_socket_t *sock,
-                                      const char *address,
-                                      uint16_t port,
-                                      const char *ifname);
 aes67_status_t aes67_socket_recv(const aes67_socket_t *sock, uint8_t *buffer, size_t buffer_size, size_t *received_len);
 aes67_status_t aes67_socket_send(const aes67_socket_t *sock, const uint8_t *buffer, size_t len);
 // Note: _rtp functions have unified signatures for both platforms, declared above
