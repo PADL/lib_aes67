@@ -252,8 +252,13 @@ aes67_status_t aes67_socket_send(CLIENT_INTERFACE(xtcp_if, xtcp),
                                  ARRAY_OF_SIZE(const uint8_t, buffer, len),
                                  size_t len);
 
-aes67_status_t aes67_socket_recv_rtp(unsigned xtcp, const aes67_socket_t *sock, aes67_rtp_packet_t *packet);
-aes67_status_t aes67_socket_send_rtp(unsigned xtcp, const aes67_socket_t *sock, const aes67_rtp_packet_t *packet);
+#if AES67_XMOS
+aes67_status_t aes67_socket_recv_rtp(chanend xtcp, const aes67_socket_t *sock, aes67_rtp_packet_t *packet);
+aes67_status_t aes67_socket_send_rtp(chanend xtcp, const aes67_socket_t *sock, const aes67_rtp_packet_t *packet);
+#else
+aes67_status_t aes67_socket_recv_rtp(const aes67_socket_t *sock, aes67_rtp_packet_t *packet);
+aes67_status_t aes67_socket_send_rtp(const aes67_socket_t *sock, const aes67_rtp_packet_t *packet);
+#endif
 
 void aes67_socket_close(CLIENT_INTERFACE(xtcp_if, xtcp),
                         REFERENCE_PARAM(aes67_socket_t, sock));
