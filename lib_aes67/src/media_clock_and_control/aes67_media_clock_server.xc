@@ -349,9 +349,10 @@ void aes67_io_task(chanend ?ptp_svr,
                     if (info.active) {
                         unsafe {
                             aes67_stream_info_t *unsafe s0 = aes67_get_receiver_stream(0);
+                            uint32_t state = s0->state; // atomic read
 
-                            if (s0->state == AES67_STREAM_STATE_POTENTIAL ||
-                                s0->state == AES67_STREAM_STATE_ENABLED) {
+                            if (state == AES67_STREAM_STATE_POTENTIAL ||
+                                state == AES67_STREAM_STATE_ENABLED) {
                                 COMPILER_BARRIER();
                                 info.rate = s0->sample_rate;
                             } else {

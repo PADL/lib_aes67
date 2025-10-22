@@ -63,16 +63,20 @@ static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
 
         switch (stream_info->state) {
         case AES67_STREAM_STATE_DISABLED:
-            if (receiver_socket.fd != -1)
+            if (receiver_socket.fd != -1) {
+                COMPILER_BARRIER();
                 aes67_close_receiver(i_xtcp, *stream_info, id);
+            }
             unsafe {
                 for (size_t ch = 0; ch < AES67_MAX_CHANNELS_PER_RECEIVER; ch++)
                     aes67_audio_fifo_disable(&receivers[id].fifos[ch]);
             }
             break;
         case AES67_STREAM_STATE_ENABLED:
-            if (receiver_socket.fd == -1)
+            if (receiver_socket.fd == -1) {
+                COMPILER_BARRIER();
                 aes67_open_receiver(i_xtcp, *stream_info, id);
+            }
             break;
         case AES67_STREAM_STATE_POTENTIAL:
             fail("potential state invalid for sender stream");

@@ -81,10 +81,11 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
                                         const aes67_rtp_packet_t *packet) {
     aes67_stream_info_t *stream_info = &receiver_streams[id];
     int need_open = 0;
+    uint32_t state = stream_info->state; // atomic read
 
-    if (stream_info->state == AES67_STREAM_STATE_POTENTIAL)
+    if (state == AES67_STREAM_STATE_POTENTIAL)
         need_open = 1;
-    else if (stream_info->state != AES67_STREAM_STATE_ENABLED)
+    else if (state != AES67_STREAM_STATE_ENABLED)
         return AES67_STATUS_OK;
 
     COMPILER_BARRIER();
