@@ -153,6 +153,9 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
               client xtcp_if i_xtcp,
               chanend media_control);
 
+#define AES67_FLAG_PTP_SLAVE_ONLY   0x01
+#define AES67_FLAG_RTP_ETH_HP               0x02
+
 void aes67_io_task(chanend ?ptp_svr,
                    chanend buf_ctl[num_buf_ctl],
                    uint32_t num_buf_ctl,
@@ -163,7 +166,7 @@ void aes67_io_task(chanend ?ptp_svr,
                    client xtcp_if i_xtcp,
                    chanend c_ptp[num_ptp],
                    uint32_t num_ptp,
-                   enum ptp_server_type server_type);
+                   uint32_t flags);
 
 // depacketizer
 void aes67_rtp_receiver(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend buf_ctl,

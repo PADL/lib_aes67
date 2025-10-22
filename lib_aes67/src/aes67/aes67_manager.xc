@@ -46,7 +46,7 @@ static void sdp_init_advertisements(void) {
 static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
                                          const int32_t id,
                                          const aes67_sdp_t &sdp) {
-    ip4_addr_t ipv4_addr;
+    aes67_status_t status;
 
     stream_info.state = AES67_STREAM_STATE_POTENTIAL;
 
@@ -70,19 +70,21 @@ static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
     stream_info.packet_time_us =
         (uint32_t)(sdp.packet_duration * 1000.0); // convert ms to us
 
-    // Parse RTP address using inet_pton (IPv4 only)
-    unsafe {
-        if (ip4addr_aton(sdp.address, &ipv4_addr) == 1) {
-            // IPv4 address - convert from network to host byte order
-            stream_info.rtp_addr = ntoh_ip4addr(ipv4_addr);
-        } else {
-            // Invalid or unsupported address (IPv6 not supported)
-            debug_printf("invalid SDP address %s\n", sdp.address);
-            return AES67_STATUS_INVALID_SDP_ADDRESS;
-        }
+    // Parse destination IPv4 address
+    status = aes67_sdp_get_ipv4_address(sdp, stream_info.dest_addr);
+    if (status != AES67_STATUS_OK) {
+        debug_printf("invalid SDP address %s\n", sdp.address);
+        return AES67_STATUS_INVALID_SDP_ADDRESS;
     }
 
-    stream_info.rtp_port = (uint16_t)atoi(sdp.__port);
+    // Parse source IPv4 address (session origin)
+    status = aes67_sdp_get_ipv4_session_origin(sdp, stream_info.src_addr);
+    if (status != AES67_STATUS_OK) {
+        debug_printf("invalid SDP session origin %s\n", sdp.session_origin);
+        return AES67_STATUS_INVALID_SDP_ADDRESS;
+    }
+
+    stream_info.dest_port = (uint16_t)atoi(sdp.__port);
     stream_info.gm_id = parse_ptp_gmid(sdp.ptp_gmid);
     stream_info.gm_port = (uint16_t)sdp.ptp_domain;
     stream_info.clock_offset = sdp.clock_offset;
@@ -233,11 +235,11 @@ sap_advertise_sender(client xtcp_if i_xtcp,
                      aes67_sdp_t &_sdp,
                      const aes67_time_source_info_t &time_source_info) {
     char sdp_string[AES67_SDP_MAX_LEN];
+    xtcp_ipconfig_t ipconfig;
     aes67_sdp_t sdp = _sdp;
     aes67_status_t status;
     uint8_t message_type;
     aes67_socket_t sock;
-    xtcp_host_t host;
 
     assert(sdp_has_valid_session_name(sdp));
 
@@ -246,16 +248,16 @@ sap_advertise_sender(client xtcp_if i_xtcp,
     else
         message_type = AES67_SAP_MESSAGE_ANNOUNCE;
 
-    host = i_xtcp.get_ipconfig_local(sap_tx_socket);
+    ipconfig = i_xtcp.get_netif_ipconfig(0);
 
     sock.fd = sap_tx_socket;
     sock.joined_group = 1;
     memcpy(&sock.dest_addr, &sap_mcast_group, sizeof(sap_mcast_group));
-    memcpy(&sock.src_addr, &host.ipaddr, sizeof(host.ipaddr));
+    memcpy(&sock.src_addr, &ipconfig.ipaddr, sizeof(ipconfig.ipaddr));
 
     // fill in origin, ptp_gmid, and ptp_domain which may have changed from
     // when the advertisement was initially registered
-    aes67_sdp_set_ipv4_session_origin(sdp, host.ipaddr);
+    aes67_sdp_set_ipv4_session_origin(sdp, ipconfig.ipaddr);
     aes67_sdp_set_ptp_gmid(sdp, time_source_info.ptp_id);
     aes67_sdp_set_ptp_domain(sdp, time_source_info.ptp_domain);
 

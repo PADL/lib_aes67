@@ -171,3 +171,10 @@ static inline uint32_t xtcp_ipaddr_to_uint32(xtcp_ipaddr_t addr) {
 static inline uint32_t xtcp_ipaddr_to_host_uint32(xtcp_ipaddr_t addr) {
     return (addr[0] << 24) | (addr[1] << 16) | (addr[2] << 8) | addr[3];
 }
+
+static inline void uint32_to_xtcp_ipaddr(xtcp_ipaddr_t addr, uint32_t ip) {
+    addr[0] = (ip >> 24) & 0xFF;
+    addr[1] = (ip >> 16) & 0xFF;
+    addr[2] = (ip >> 8) & 0xFF;
+    addr[3] = ip & 0xFF;
+}

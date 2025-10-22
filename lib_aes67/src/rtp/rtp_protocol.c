@@ -18,22 +18,18 @@ aes67_status_t aes67_rtp_parse(aes67_rtp_packet_t *packet) {
     if (packet->rtp_length < header_len)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    // Convert multi-byte fields from network to host byte order
     packet->rtp_header.sequence = ntohs(packet->rtp_header.sequence);
     packet->rtp_header.timestamp = ntohl(packet->rtp_header.timestamp);
     packet->rtp_header.ssrc = ntohl(packet->rtp_header.ssrc);
 
-    // Validate RTP version using macro
     if (RTP_VERSION_GET(rtp_header) != RTP_VERSION)
         return AES67_STATUS_UNSUPPORTED_RTP_VERSION;
 
-    // Calculate the size of the payload including CSRC list
     header_len += RTP_CSRC_COUNT_GET(rtp_header) * 4;
 
     if (packet->rtp_length < header_len)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    // Handle extension header if present
     if (RTP_EXTENSION_GET(rtp_header)) {
         uint16_t ext_header_len;
         uint8_t *ext_ptr = &rtp_data[header_len];
@@ -48,10 +44,8 @@ aes67_status_t aes67_rtp_parse(aes67_rtp_packet_t *packet) {
             return AES67_STATUS_BAD_PACKET_LENGTH;
     }
 
-    // Calculate payload length after removing header
     uint32_t rtp_payload_len = rtp_length - header_len;
 
-    // Handle padding if present using macro
     if (RTP_PADDING_GET(rtp_header)) {
         uint8_t padding_len;
 
@@ -65,10 +59,9 @@ aes67_status_t aes67_rtp_parse(aes67_rtp_packet_t *packet) {
         rtp_payload_len -= padding_len;
     }
 
-    // rtp_length should include header + payload (excluding padding)
+    // rtp_length includes header and payload, without padding
     packet->rtp_length = header_len + rtp_payload_len;
 
-    // Success
     return AES67_STATUS_OK;
 }
 
@@ -82,6 +75,7 @@ aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
 #endif
 {
     aes67_status_t status;
+
 #if AES67_XMOS
     status = aes67_socket_recv_rtp(xtcp, socket, packet);
 #else
@@ -104,8 +98,8 @@ aes67_status_t aes67_socket_recv_rtp(const aes67_socket_t *sock, aes67_rtp_packe
 #endif
     const size_t rtp_buffer_size = RTP_HEADER_LENGTH + RTP_MAX_PAYLOAD;
     uint8_t *rtp_data = aes67_rtp_packet_start_rtp(packet);
-    size_t received_len;
     aes67_status_t status;
+    size_t received_len;
 
 #if AES67_XMOS
     status = aes67_socket_recv(xtcp, sock, rtp_data, rtp_buffer_size, &received_len);

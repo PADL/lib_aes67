@@ -67,6 +67,7 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
     uint32_t time;
     timer t;
     uint8_t src_mac_addr[MACADDR_NUM_BYTES];
+    xtcp_ipconfig_t ipconfig;
 
     // Get MAC address from ethernet config interface if available
     if (!isnull(i_eth_cfg)) {
@@ -75,6 +76,10 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
         // Use default/zero MAC address if no ethernet config interface
         memset(src_mac_addr, 0, MACADDR_NUM_BYTES);
     }
+
+    // Get the IP configuration, this will be updated whenever the interface comes up
+    // and is used to set the source IP address when we are generating raw frames
+    ipconfig = i_xtcp.get_netif_ipconfig(0);
 
     // Initialize movable read buffers
     for (int32_t i = 0; i < NUM_AES67_SENDERS; i++) {
@@ -85,8 +90,6 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
 
     rtp_tx_socket = i_xtcp.socket(XTCP_PROTOCOL_UDP);
     assert(rtp_tx_socket != -1);
-
-    // TODO: we might need a FIFO or double buffer here if we can't send packets fast enough
 
     while (1) {
         [[ordered]]
@@ -102,12 +105,22 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                 swapPointer(tx_rdbuffer[id], tmp);
 
                 // send RTP packet
-                aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, id, tx_rdbuffer[id],
+                aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, ipconfig.ipaddr, id, tx_rdbuffer[id],
                                       senders[id].samples_per_packet, timestamp);
                 break;
+
             case t when timerafter(time) :> void:
                 aes67_poll_stream_info_changed(time, rtp_tx_socket);
                 time += XS1_TIMER_HZ;
+                break;
+
+            case i_xtcp.event_ready():
+                xtcp_event_type_t event;
+                int32_t id;
+
+                event = i_xtcp.get_event(id);
+                if (event == XTCP_IFUP)
+                    ipconfig = i_xtcp.get_netif_ipconfig(0);
                 break;
         }
     }

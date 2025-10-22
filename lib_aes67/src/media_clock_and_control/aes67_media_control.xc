@@ -17,31 +17,24 @@
 aes67_stream_info_t receiver_streams[NUM_AES67_RECEIVERS];
 aes67_stream_info_t sender_streams[NUM_AES67_SENDERS];
 
-void get_stream_rtp_address(xtcp_ipaddr_t rtp_addr,
-                            const aes67_stream_info_t &stream_info) {
-    uint32_t net_addr = stream_info.rtp_addr.addr;
-
-    rtp_addr[0] = (net_addr >> 24) & 0xFF;
-    rtp_addr[1] = (net_addr >> 16) & 0xFF;
-    rtp_addr[2] = (net_addr >> 8) & 0xFF;
-    rtp_addr[3] = net_addr & 0xFF;
-}
-
 static aes67_status_t
 join_receiver_stream(client ethernet_cfg_if i_eth_cfg,
                      client xtcp_if i_xtcp,
-                     const aes67_stream_info_t &stream_info) {
+                     const aes67_stream_info_t &stream_info,
+                     uint32_t flags) {
     xtcp_ipaddr_t rtp_addr;
     ethernet_macaddr_filter_t macaddr_filter;
 
-    get_stream_rtp_address(rtp_addr, stream_info);
+    memcpy(rtp_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
     i_xtcp.join_multicast_group(rtp_addr);
 
-    // Delete old filter and add HP filter for multicast MAC address
-    ipv4_to_multicast_mac(rtp_addr, macaddr_filter.addr);
-    macaddr_filter.appdata = 0;
-    i_eth_cfg.del_macaddr_filter(0, 0, macaddr_filter);
-    i_eth_cfg.add_macaddr_filter(0, 1, macaddr_filter);
+    if (flags & AES67_FLAG_RTP_ETH_HP) {
+        // Delete old filter and add HP filter for multicast MAC address
+        ipv4_to_multicast_mac(rtp_addr, macaddr_filter.addr);
+        macaddr_filter.appdata = 0;
+        i_eth_cfg.del_macaddr_filter(0, 0, macaddr_filter);
+        i_eth_cfg.add_macaddr_filter(0, 1, macaddr_filter);
+    }
 
     return AES67_STATUS_OK;
 }
@@ -49,17 +42,20 @@ join_receiver_stream(client ethernet_cfg_if i_eth_cfg,
 static aes67_status_t
 leave_receiver_stream(client ethernet_cfg_if i_eth_cfg,
                       client xtcp_if i_xtcp,
-                      const aes67_stream_info_t &stream_info) {
+                      const aes67_stream_info_t &stream_info,
+                      uint32_t flags) {
     xtcp_ipaddr_t rtp_addr;
     ethernet_macaddr_filter_t macaddr_filter;
 
-    get_stream_rtp_address(rtp_addr, stream_info);
+    memcpy(rtp_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
     i_xtcp.leave_multicast_group(rtp_addr);
 
-    // Delete HP filter for multicast MAC address
-    ipv4_to_multicast_mac(rtp_addr, macaddr_filter.addr);
-    macaddr_filter.appdata = 0;
-    i_eth_cfg.del_macaddr_filter(0, 1, macaddr_filter);
+    if (flags & AES67_FLAG_RTP_ETH_HP) {
+        // Delete HP filter for multicast MAC address
+        ipv4_to_multicast_mac(rtp_addr, macaddr_filter.addr);
+        macaddr_filter.appdata = 0;
+        i_eth_cfg.del_macaddr_filter(0, 1, macaddr_filter);
+    }
 
     return AES67_STATUS_OK;
 }
@@ -96,68 +92,72 @@ log_subscription_control_command(aes67_media_control_command_t command,
     debug_printf(
         "%s: new state %08x ID %d dest %d.%d.%d.%d:%d\n",
         control_command_to_string(command), stream_info.state,
-        stream_info.stream_id, (stream_info.rtp_addr.addr & 0xff000000) >> 24,
-        (stream_info.rtp_addr.addr & 0x00ff0000) >> 16,
-        (stream_info.rtp_addr.addr & 0x0000ff00) >> 8,
-        (stream_info.rtp_addr.addr & 0x000000ff) >> 0, stream_info.rtp_port);
+        stream_info.stream_id,
+        stream_info.dest_addr[0],
+        stream_info.dest_addr[1],
+        stream_info.dest_addr[2],
+        stream_info.dest_addr[3],
+        stream_info.dest_port);
 }
 
 // copy the non-atomic elements of a stream_info
 static void
-copy_stream_info(aes67_stream_info_t &dst_stream_info,
+copy_stream_info(aes67_stream_info_t &dest_stream_info,
                  const const aes67_stream_info_t &stream_info) {
-    assert(dst_stream_info.state == AES67_STREAM_STATE_UPDATING);
+    assert(dest_stream_info.state == AES67_STREAM_STATE_UPDATING);
     // copy in other fields (non-atomically)
-    memcpy((uint8_t *)&dst_stream_info + sizeof(uint32_t),
+    memcpy((uint8_t *)&dest_stream_info + sizeof(uint32_t),
            (const uint8_t *)&stream_info + sizeof(uint32_t),
            sizeof(stream_info) - sizeof(uint32_t));
 }
 
 static unsafe aes67_status_t
-subscribe_or_resubscribe_stream(client ethernet_cfg_if i_eth_cfg,
+subscribe_or_resubscribe_stream(client ethernet_cfg_if ?i_eth_cfg,
                                 client xtcp_if i_xtcp,
                                 aes67_media_control_command_t command,
-                                const aes67_stream_info_t &stream_info) {
+                                const aes67_stream_info_t &stream_info,
+                                uint32_t flags) {
     const int32_t id = stream_info.stream_id;
-    aes67_stream_info_t *unsafe dst_stream_info = aes67_get_receiver_stream(id);
+    aes67_stream_info_t *unsafe dest_stream_info = aes67_get_receiver_stream(id);
 
     log_subscription_control_command(command, stream_info);
 
     // an existing stream can only be resubscribed to, or unsubscribed from
-    if (dst_stream_info->state == AES67_STREAM_STATE_ENABLED &&
+    if (dest_stream_info->state == AES67_STREAM_STATE_ENABLED &&
         command != AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
         return AES67_STATUS_ALREADY_SUBSCRIBED;
-    else if (dst_stream_info->state == AES67_STREAM_STATE_DISABLED &&
+    else if (dest_stream_info->state == AES67_STREAM_STATE_DISABLED &&
         command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
         return AES67_STATUS_NOT_SUBSCRIBED;
 
     // atomically set the stream state to updating, pending update
     // (word writes on XMOS are atomic)
-    dst_stream_info->state = AES67_STREAM_STATE_UPDATING;
+    dest_stream_info->state = AES67_STREAM_STATE_UPDATING;
 
     if (command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
-        leave_receiver_stream(i_eth_cfg, i_xtcp, *dst_stream_info);
+        leave_receiver_stream(i_eth_cfg, i_xtcp, *dest_stream_info, flags);
 
-    join_receiver_stream(i_eth_cfg, i_xtcp, stream_info);
+    join_receiver_stream(i_eth_cfg, i_xtcp, stream_info, flags);
 
-    copy_stream_info(*dst_stream_info, stream_info);
+    copy_stream_info(*dest_stream_info, stream_info);
 
     COMPILER_BARRIER();
-    dst_stream_info->state = AES67_STREAM_STATE_POTENTIAL;
+    dest_stream_info->state = AES67_STREAM_STATE_POTENTIAL;
 
     return AES67_STATUS_OK;
 }
 
 static unsafe aes67_status_t
-unsubscribe_stream(client ethernet_cfg_if i_eth_cfg,
+unsubscribe_stream(client ethernet_cfg_if ?i_eth_cfg,
                    client xtcp_if i_xtcp,
-                   const int32_t id) {
+                   const int32_t id,
+                   uint32_t flags) {
     aes67_stream_info_t *unsafe stream_info = aes67_get_receiver_stream(id);
 
     if (stream_info->state == AES67_STREAM_STATE_DISABLED)
         return AES67_STATUS_NOT_SUBSCRIBED;
 
-    leave_receiver_stream(i_eth_cfg, i_xtcp, *stream_info);
+    leave_receiver_stream(i_eth_cfg, i_xtcp, *stream_info, flags);
 
     // atomic write, don't bother clearing other fields
     COMPILER_BARRIER();
@@ -172,7 +172,10 @@ void aes67_media_control_init(void) {
 }
 
 #pragma select handler
-void aes67_media_control(chanend media_control, client ethernet_cfg_if i_eth_cfg, client xtcp_if i_xtcp) {
+void aes67_media_control(chanend media_control,
+                         client ethernet_cfg_if i_eth_cfg,
+                         client xtcp_if i_xtcp,
+                         uint32_t flags) {
     uint8_t control_command;
 
     media_control :> control_command;
@@ -185,7 +188,7 @@ void aes67_media_control(chanend media_control, client ethernet_cfg_if i_eth_cfg
 
         media_control :> stream_info;
         unsafe {
-            subscribe_or_resubscribe_stream(i_eth_cfg, i_xtcp, control_command, stream_info);
+            subscribe_or_resubscribe_stream(i_eth_cfg, i_xtcp, control_command, stream_info, flags);
         }
         break;
     case AES67_MEDIA_CONTROL_COMMAND_UNSUBSCRIBE:
@@ -193,7 +196,7 @@ void aes67_media_control(chanend media_control, client ethernet_cfg_if i_eth_cfg
 
         media_control :> id;
         unsafe {
-            unsubscribe_stream(i_eth_cfg, i_xtcp, id);
+            unsubscribe_stream(i_eth_cfg, i_xtcp, id, flags);
         }
         break;
     case AES67_MEDIA_CONTROL_COMMAND_GET_CLOCK_INFO:

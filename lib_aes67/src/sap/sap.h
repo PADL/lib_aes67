@@ -132,6 +132,17 @@ void aes67_sdp_set_encoding_name(REFERENCE_PARAM(aes67_sdp_t, sdp),
 void aes67_sdp_set_session_id(REFERENCE_PARAM(aes67_sdp_t, sdp),
                               uint64_t session_id);
 
+aes67_status_t aes67_sdp_get_ipv4_address(REFERENCE_PARAM(const aes67_sdp_t, sdp),
+                                          uint8_t ip_addr[4]);
+
+aes67_status_t aes67_sdp_get_ipv4_session_origin(REFERENCE_PARAM(const aes67_sdp_t, sdp),
+                                                 uint8_t ip_addr[4]);
+
+aes67_status_t aes67_sdp_get_ptp_gmid(REFERENCE_PARAM(const aes67_sdp_t, sdp),
+                                      uint8_t ptp_gmid[8]);
+
+int aes67_sdp_get_ptp_domain(REFERENCE_PARAM(const aes67_sdp_t, sdp));
+
 // RTP packet utility function that needs SDP
 uint32_t aes67_rtp_packet_duration(REFERENCE_PARAM(const aes67_rtp_packet_t, packet),
                                    REFERENCE_PARAM(const aes67_sdp_t, sdp));

@@ -5,6 +5,8 @@
 #include "sap.h"
 #include "rtp_protocol.h"
 #include "aes67_utils.h"
+#include "ptp_internal.h"
+#include "nettypes.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -454,4 +456,38 @@ uint32_t aes67_rtp_packet_duration(const aes67_rtp_packet_t *packet,
 
 void aes67_sdp_set_session_id(aes67_sdp_t *sdp, uint64_t session_id) {
     snprintf(sdp->session_id, sizeof(sdp->session_id), "%llu", session_id);
+}
+
+aes67_status_t aes67_sdp_get_ipv4_address(const aes67_sdp_t *sdp, uint8_t ip_addr[4]) {
+    ip4_addr_t addr;
+
+    if (ip4addr_aton(sdp->address, &addr) != 1)
+        return AES67_STATUS_INVALID_IP_DEST_ADDR;
+
+    uint32_to_xtcp_ipaddr(ip_addr, addr.addr);
+    return AES67_STATUS_OK;
+}
+
+aes67_status_t aes67_sdp_get_ipv4_session_origin(const aes67_sdp_t *sdp, uint8_t ip_addr[4]) {
+    ip4_addr_t addr;
+
+    if (ip4addr_aton(sdp->session_origin, &addr) != 1)
+        return AES67_STATUS_INVALID_IP_SRC_ADDR;
+
+    uint32_to_xtcp_ipaddr(ip_addr, addr.addr);
+    return AES67_STATUS_OK;
+}
+
+aes67_status_t aes67_sdp_get_ptp_gmid(const aes67_sdp_t *sdp, uint8_t ptp_gmid[8]) {
+    n64_t parsed_gmid = parse_ptp_gmid(sdp->ptp_gmid);
+
+    for (int i = 0; i < 8; i++) {
+        ptp_gmid[i] = parsed_gmid.data[i];
+    }
+
+    return AES67_STATUS_OK;
+}
+
+int aes67_sdp_get_ptp_domain(const aes67_sdp_t *sdp) {
+    return sdp->ptp_domain;
 }

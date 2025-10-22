@@ -152,8 +152,9 @@ typedef struct _aes67_stream_info {
     uint32_t encoding;
     uint32_t sample_rate;
     uint32_t packet_time_us;
-    ip4_addr_t rtp_addr;
-    uint16_t rtp_port;
+    xtcp_ipaddr_t src_addr; // owner, creator
+    xtcp_ipaddr_t dest_addr;
+    uint16_t dest_port;
     uint16_t gm_port;
     n64_t gm_id;
     uint64_t clock_offset;
@@ -170,7 +171,10 @@ void aes67_media_control_init(void);
 
 #ifdef __XC__
 #pragma select handler
-void aes67_media_control(chanend media_control, client ethernet_cfg_if i_eth_cfg, client xtcp_if i_xtcp);
+void aes67_media_control(chanend media_control,
+                         client ethernet_cfg_if i_eth_cfg,
+                         client xtcp_if i_xtcp,
+                         uint32_t flags);
 #endif
 
 // LWIP things that aren't exposed
@@ -183,9 +187,5 @@ extern int ip4addr_aton(const char *unsafe cp, ip4_addr_t *unsafe addr);
 void aes67_register_buf_fifo(uint32_t i, uintptr_t fifo);
 void aes67_register_clock(uint32_t i);
 aes67_media_clock_info_t aes67_get_clock_info(void);
-
-void get_stream_rtp_address(xtcp_ipaddr_t rtp_addr,
-                            REFERENCE_PARAM(const aes67_stream_info_t,
-                                            stream_info));
 
 const char *unsafe aes67_status_to_string(aes67_status_t status);

@@ -32,8 +32,7 @@ aes67_socket_open_recv(client xtcp_if xtcp,
     if (err)
         return err;
 
-    sock.src_port = port_number;
-    sock.dest_port = AES67_DEFAULT_PORT;
+    sock.dest_port = port_number;
 
     if (_is_multicast(sock.dest_addr))
         xtcp.join_multicast_group(sock.dest_addr);
@@ -51,16 +50,7 @@ aes67_socket_open_send(client xtcp_if xtcp,
     if (port_number < 0)
         return AES67_STATUS_SOCKET_ERROR;
 
-#if 0
-    err = xtcp.connect(sock.fd, port_number, sock.dest_addr);
-    if (err)
-        return err;
-#else
     sock.dest_port = port_number;
-    // For send sockets, src_port should typically be set to a local port
-    // For now, using the same port but in practice this might need to be different
-    sock.src_port = port_number;
-#endif
 
     if (_is_multicast(sock.dest_addr))
         xtcp.join_multicast_group(sock.dest_addr);
@@ -68,10 +58,10 @@ aes67_socket_open_send(client xtcp_if xtcp,
     return AES67_STATUS_OK;
 }
 
-
-aes67_status_t aes67_socket_recv(client xtcp_if xtcp,
-                                 const aes67_socket_t &sock,
-                                 uint8_t buffer[buffer_size], size_t buffer_size, size_t &received_len) {
+aes67_status_t
+aes67_socket_recv(client xtcp_if xtcp,
+                  const aes67_socket_t &sock,
+                  uint8_t buffer[buffer_size], size_t buffer_size, size_t &received_len) {
     uint16_t port_number = 0;
 
     int len = xtcp.recvfrom(sock.fd, buffer, buffer_size, sock.src_addr, port_number);
@@ -181,10 +171,12 @@ static aes67_status_t validate_ip_header(aes67_rtp_packet_t &packet, const aes67
     packet.header.ip.src_ip = ntohl(packet.header.ip.src_ip);
     packet.header.ip.dest_ip = ntohl(packet.header.ip.dest_ip);
 
+    // we allow expected_src_ip to be zero, in case we only want to validate
+    // the destination IP address
     uint32_t expected_src_ip = xtcp_ipaddr_to_host_uint32(sock.src_addr);
     uint32_t expected_dest_ip = xtcp_ipaddr_to_host_uint32(sock.dest_addr);
 
-    if (packet.header.ip.src_ip != expected_src_ip)
+    if (expected_src_ip && packet.header.ip.src_ip != expected_src_ip)
         return AES67_STATUS_INVALID_IP_SRC_ADDR;
     else if (packet.header.ip.dest_ip != expected_dest_ip)
         return AES67_STATUS_INVALID_IP_DEST_ADDR;
@@ -234,7 +226,7 @@ static aes67_status_t validate_udp_header(aes67_rtp_packet_t &packet, const aes6
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
     // Validate UDP ports
-    if (udp_src_port != sock.src_port)
+    if (sock.src_port && udp_src_port != sock.src_port)
         return AES67_STATUS_INVALID_UDP_SRC_PORT;
     else if (udp_dest_port != sock.dest_port)
         return AES67_STATUS_INVALID_UDP_DEST_PORT;

@@ -61,9 +61,10 @@ static void encode_rtp_packet_header(aes67_rtp_header_t *rtp_header) {
 }
 
 aes67_status_t
-aes67_send_rtp_packet(unsigned i_xtcp,
+aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                       const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
                       streaming_chanend_t c_eth_tx_hp,
+                      const xtcp_ipaddr_t src_ipaddr,
                       int32_t id,
                       ARRAY_OF_SIZE(const uint32_t, samples, len),
                       size_t len,
@@ -115,12 +116,13 @@ aes67_send_rtp_packet(unsigned i_xtcp,
     packet.rtp_length = RTP_HEADER_LENGTH + stream_info->sample_size * len;
 
     if (c_eth_tx_hp) {
+        aes67_socket_t sock = sender->socket;
+        memcpy(sock.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
         status = aes67_raw_send_rtp(src_mac_addr, c_eth_tx_hp,
-                                    &sender->socket, &packet);
+                                    &sock, &packet);
     } else {
         status = aes67_socket_send_rtp(i_xtcp, &sender->socket, &packet);
     }
 
     return status;
 }
-

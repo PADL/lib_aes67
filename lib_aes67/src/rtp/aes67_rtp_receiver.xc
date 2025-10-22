@@ -23,8 +23,10 @@ static int32_t lookup_receiver_from_fd(int32_t fd) {
 }
 
 
-static aes67_status_t aes67_close_receiver(
-    client xtcp_if i_xtcp, const aes67_stream_info_t &stream_info, int32_t id) {
+static aes67_status_t
+aes67_close_receiver(client xtcp_if i_xtcp,
+                     const aes67_stream_info_t &stream_info,
+                     int32_t id) {
     aes67_socket_t &receiver_socket = receivers[id].socket;
 
     i_xtcp.close(receiver_socket.fd);
@@ -33,9 +35,11 @@ static aes67_status_t aes67_close_receiver(
     return AES67_STATUS_OK;
 }
 
-static aes67_status_t aes67_open_receiver(
-    client xtcp_if i_xtcp, const aes67_stream_info_t &stream_info, int32_t id) {
-    xtcp_ipaddr_t rtp_addr;
+static aes67_status_t
+aes67_open_receiver(client xtcp_if i_xtcp,
+                    const aes67_stream_info_t &stream_info,
+                    int32_t id) {
+    xtcp_ipaddr_t src_addr, dest_addr;
     aes67_status_t err;
 
     aes67_socket_t &receiver_socket = receivers[id].socket;
@@ -45,18 +49,18 @@ static aes67_status_t aes67_open_receiver(
     if (receiver_socket.fd < 0)
         return AES67_STATUS_SOCKET_ERROR;
 
-    get_stream_rtp_address(rtp_addr, stream_info);
+    // source address can be used to filter packets
+    memcpy(src_addr, stream_info.src_addr, sizeof(xtcp_ipaddr_t));
+    memcpy(dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
 
-    err = i_xtcp.listen(receiver_socket.fd, stream_info.rtp_port, rtp_addr);
+    err = i_xtcp.listen(receiver_socket.fd, stream_info.dest_port, dest_addr);
     if (err) {
         aes67_close_receiver(i_xtcp, stream_info, id);
         return AES67_STATUS_SOCKET_ERROR;
     }
 
-    // Initialize socket port fields
-    receiver_socket.dest_port = AES67_DEFAULT_PORT;
-    memcpy(receiver_socket.dest_addr, rtp_addr, sizeof(rtp_addr));
-    receiver_socket.src_port = stream_info.rtp_port;
+    receiver_socket.dest_port = stream_info.dest_port;
+    memcpy(receiver_socket.dest_addr, dest_addr, sizeof(dest_addr));
 
     return AES67_STATUS_OK;
 }

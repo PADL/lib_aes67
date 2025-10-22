@@ -281,8 +281,7 @@ void aes67_io_task(chanend ?ptp_svr,
                    client xtcp_if i_xtcp,
                    chanend c_ptp[num_ptp],
                    uint32_t num_ptp,
-                   enum ptp_server_type server_type
-) {
+                   uint32_t flags) {
     timer tmr;
     int ptp_timeout;
     unsigned int clk_time;
@@ -291,9 +290,14 @@ void aes67_io_task(chanend ?ptp_svr,
 #endif
     timer clk_timer;
     int last_ptp_sync_lock = 0;
+    enum ptp_server_type ptp_server_type;
 
-    ptp_server_init(i_eth_cfg, null, i_xtcp, c_ptp[0], server_type, tmr,
-                    ptp_timeout);
+    if (flags & AES67_FLAG_PTP_SLAVE_ONLY)
+        ptp_server_type = PTP_SLAVE_ONLY;
+    else
+        ptp_server_type = PTP_GRANDMASTER_CAPABLE;
+
+    ptp_server_init(i_eth_cfg, null, i_xtcp, c_ptp[0], ptp_server_type, tmr, ptp_timeout);
 
 #if (AES67_NUM_MEDIA_OUTPUTS != 0)
     aes67_media_clock_init_buffers();
@@ -397,7 +401,7 @@ void aes67_io_task(chanend ?ptp_svr,
                 break;
 #endif // AES67_NUM_MEDIA_OUTPUTS != 0
 
-            case aes67_media_control(media_control, i_eth_cfg, i_xtcp):
+            case aes67_media_control(media_control, i_eth_cfg, i_xtcp, flags):
                 break;
             }
     }
