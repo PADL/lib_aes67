@@ -89,8 +89,14 @@ static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
         debug_printf("invalid SDP port %s\n", sdp.__port);
         return AES67_STATUS_INVALID_UDP_DEST_PORT;
     }
-    stream_info.gm_id = parse_ptp_gmid(sdp.ptp_gmid);
-    stream_info.gm_port = (uint16_t)sdp.ptp_domain;
+
+    status = aes67_sdp_get_ptp_gmid(sdp, stream_info.gm_id.data);
+    if (status != AES67_STATUS_OK) {
+        debug_printf("invalid SDP PTP GMID %s\n", sdp.ptp_gmid);
+        return status;
+    }
+
+    stream_info.gm_port = (uint16_t)aes67_sdp_get_ptp_domain(sdp);
     stream_info.clock_offset = sdp.clock_offset;
 
     return AES67_STATUS_OK;
