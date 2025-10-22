@@ -325,6 +325,10 @@ void aes67_sdp_set_ipv4_session_origin(aes67_sdp_t *sdp,
              ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
 }
 
+void aes67_sdp_set_ipv4_port(aes67_sdp_t *sdp, uint16_t __port) {
+    snprintf(sdp->port, sizeof(sdp->port), "%u", __port);
+}
+
 void aes67_sdp_set_ptp_gmid(aes67_sdp_t *sdp, const uint8_t ptp_gmid[8]) {
     snprintf(sdp->ptp_gmid, sizeof(sdp->ptp_gmid),
              "%02x-%02x-%02x-%02x-%02x-%02x-%02x-%02x", ptp_gmid[0],
@@ -490,4 +494,15 @@ aes67_status_t aes67_sdp_get_ptp_gmid(const aes67_sdp_t *sdp, uint8_t ptp_gmid[8
 
 int aes67_sdp_get_ptp_domain(const aes67_sdp_t *sdp) {
     return sdp->ptp_domain;
+}
+
+aes67_status_t aes67_sdp_get_ipv4_port(const aes67_sdp_t *sdp, uint16_t *__port) {
+    int parsed_port = atoi(sdp->port);
+
+    if (parsed_port < 0 || parsed_port > 65535)
+        return AES67_STATUS_INVALID_UDP_DEST_PORT;
+
+    *__port = (uint16_t)parsed_port;
+
+    return AES67_STATUS_OK;
 }

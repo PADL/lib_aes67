@@ -8,31 +8,19 @@
 
 #include "rtp_protocol.h"
 
-static int port_string_to_port_number(const char _port[]) {
-    int port_number = atoi(_port);
-
-    if (port_number < 0 || port_number > 65535)
-        return -1;
-
-    return port_number;
-}
 
 aes67_status_t
 aes67_socket_open_recv(client xtcp_if xtcp,
                        aes67_socket_t &sock,
                        const char address[],
-                       const char _port[]) {
-    int port_number = port_string_to_port_number(_port);
+                       uint16_t __port) {
     xtcp_error_code_t err;
 
-    if (port_number < 0)
-        return AES67_STATUS_SOCKET_ERROR;
-
-    err = xtcp.listen(sock.fd, port_number, sock.dest_addr);
+    err = xtcp.listen(sock.fd, __port, sock.dest_addr);
     if (err)
         return err;
 
-    sock.dest_port = port_number;
+    sock.dest_port = __port;
 
     if (_is_multicast(sock.dest_addr))
         xtcp.join_multicast_group(sock.dest_addr);
@@ -44,13 +32,8 @@ aes67_status_t
 aes67_socket_open_send(client xtcp_if xtcp,
                        aes67_socket_t &sock,
                        const char address[],
-                       const char _port[]) {
-    int port_number = port_string_to_port_number(_port);
-
-    if (port_number < 0)
-        return AES67_STATUS_SOCKET_ERROR;
-
-    sock.dest_port = port_number;
+                       uint16_t __port) {
+    sock.dest_port = __port;
 
     if (_is_multicast(sock.dest_addr))
         xtcp.join_multicast_group(sock.dest_addr);

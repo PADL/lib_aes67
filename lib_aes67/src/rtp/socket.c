@@ -398,15 +398,17 @@ static int _set_multicast_loopback(aes67_socket_t *sock, char loop) {
 
 aes67_status_t aes67_socket_open_recv(aes67_socket_t *sock,
                                       const char *address,
-                                      const char *port,
+                                      uint16_t port,
                                       const char *ifname) {
     int is_multicast;
+    char port_str[8];
 
     // Initialise
     memset(sock, 0, sizeof(aes67_socket_t));
 
-    aes67_info("Opening socket: %s/%s", address, port);
-    if (_create_socket(sock, DO_BIND_SOCKET, address, port)) {
+    snprintf(port_str, sizeof(port_str), "%u", port);
+    aes67_info("Opening socket: %s/%s", address, port_str);
+    if (_create_socket(sock, DO_BIND_SOCKET, address, port_str)) {
         aes67_error("Failed to open socket for receiving.");
         return AES67_STATUS_SOCKET_ERROR;
     }
@@ -432,15 +434,17 @@ aes67_status_t aes67_socket_open_recv(aes67_socket_t *sock,
 
 aes67_status_t aes67_socket_open_send(aes67_socket_t *sock,
                                       const char *address,
-                                      const char *port,
+                                      uint16_t port,
                                       const char *ifname) {
     int is_multicast;
+    char port_str[8];
 
     // Initialise
     memset(sock, 0, sizeof(aes67_socket_t));
 
-    aes67_info("Opening transmit socket: %s/%s", address, port);
-    if (_create_socket(sock, DONT_BIND_SOCKET, address, port)) {
+    snprintf(port_str, sizeof(port_str), "%u", port);
+    aes67_info("Opening transmit socket: %s/%s", address, port_str);
+    if (_create_socket(sock, DONT_BIND_SOCKET, address, port_str)) {
         aes67_error("Failed to open socket for sending.");
         return AES67_STATUS_SOCKET_ERROR;
     }
@@ -460,7 +464,6 @@ aes67_status_t aes67_socket_open_send(aes67_socket_t *sock,
 
     return AES67_STATUS_OK;
 }
-
 
 void aes67_socket_close(aes67_socket_t *sock) {
     // Drop Multicast membership
