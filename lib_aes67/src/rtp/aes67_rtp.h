@@ -43,6 +43,8 @@ extern aes67_sender_t senders[NUM_AES67_SENDERS];
 
 aes67_status_t
 aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
+                      const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
+                      streaming_chanend_t c_eth_tx_hp,
                       int32_t id,
                       ARRAY_OF_SIZE(const uint32_t, samples, len),
                       size_t len,

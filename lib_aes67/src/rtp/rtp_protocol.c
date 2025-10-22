@@ -3,92 +3,126 @@
 // Portions Copyright (c) 2020-2025 PADL Software Pty Ltd
 
 #include <stdlib.h>
+#include <xassert.h>
 
 #include "bytestoint.h"
 #include "rtp_protocol.h"
 #include "sap/sap.h"
 
-#define bitMask(byte, mask, shift) ((byte & (mask << shift)) >> shift)
-
-int aes67_rtp_parse(aes67_rtp_packet_t *packet) {
+aes67_status_t aes67_rtp_parse(aes67_rtp_packet_t *packet) {
+    uint32_t rtp_length = aes67_rtp_packet_length_rtp(packet);
+    uint8_t *rtp_data = aes67_rtp_packet_start_rtp(packet);
+    aes67_rtp_header_t *rtp_header = &packet->rtp_header;
     size_t header_len = RTP_HEADER_LENGTH;
 
-    // Byte 1
-    packet->version = bitMask(packet->buffer[0], 0x02, 6);
-    packet->padding = bitMask(packet->buffer[0], 0x01, 5);
-    packet->extension = bitMask(packet->buffer[0], 0x01, 4);
-    packet->csrc_count = bitMask(packet->buffer[0], 0x0F, 0);
+    if (packet->rtp_length < header_len)
+        return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    // Byte 2
-    packet->marker = bitMask(packet->buffer[1], 0x01, 7);
-    packet->payload_type = bitMask(packet->buffer[1], 0x7F, 0);
+    // Convert multi-byte fields from network to host byte order
+    packet->rtp_header.sequence = ntohs(packet->rtp_header.sequence);
+    packet->rtp_header.timestamp = ntohl(packet->rtp_header.timestamp);
+    packet->rtp_header.ssrc = ntohl(packet->rtp_header.ssrc);
 
-    // Bytes 3 and 4
-    packet->sequence = bytesToUInt16(&packet->buffer[2]);
+    // Validate RTP version using macro
+    if (RTP_VERSION_GET(rtp_header) != RTP_VERSION)
+        return AES67_STATUS_UNSUPPORTED_RTP_VERSION;
 
-    // Bytes 5-8
-    packet->timestamp = bytesToUInt32(&packet->buffer[4]);
+    // Calculate the size of the payload including CSRC list
+    header_len += RTP_CSRC_COUNT_GET(rtp_header) * 4;
 
-    // Bytes 9-12
-    packet->ssrc = bytesToUInt32(&packet->buffer[8]);
+    if (packet->rtp_length < header_len)
+        return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    // Calculate the size of the payload
-    header_len += (packet->csrc_count * 4);
-
-    if (packet->extension) {
+    // Handle extension header if present
+    if (RTP_EXTENSION_GET(rtp_header)) {
         uint16_t ext_header_len;
+        uint8_t *ext_ptr = &rtp_data[header_len];
 
-        if (packet->length < header_len + 4)
-            return -1;
+        if (rtp_length < header_len + 4)
+            return AES67_STATUS_BAD_PACKET_LENGTH;
 
-        /* ignore extension header ID at buffer + header_len */
-        ext_header_len = bytesToUInt16(&packet->buffer[header_len + 2]);
+        ext_header_len = RTP_EXT_LENGTH_GET(ext_ptr);
         header_len += 4 + (ext_header_len * 4);
+
+        if (rtp_length < header_len)
+            return AES67_STATUS_BAD_PACKET_LENGTH;
     }
 
-    if (packet->length < header_len)
-        return -1;
+    // Calculate payload length after removing header
+    uint32_t rtp_payload_len = rtp_length - header_len;
 
-    packet->payload_length = packet->length - header_len;
-    packet->payload = packet->buffer + header_len;
-
-    if (packet->padding) {
+    // Handle padding if present using macro
+    if (RTP_PADDING_GET(rtp_header)) {
         uint8_t padding_len;
 
-        if (packet->payload_length < 1)
-            return -1;
+        if (rtp_payload_len < 1)
+            return AES67_STATUS_BAD_PACKET_LENGTH;
 
-        padding_len = packet->payload[packet->payload_length - 1];
-        if (padding_len < 1 || padding_len > packet->payload_length)
-            return -1;
+        padding_len = rtp_data[rtp_length - 1];
+        if (padding_len < 1 || padding_len > rtp_payload_len)
+            return AES67_STATUS_BAD_PACKET_LENGTH;
 
-        packet->payload_length -= padding_len;
+        rtp_payload_len -= padding_len;
     }
 
+    // rtp_length should include header + payload (excluding padding)
+    packet->rtp_length = header_len + rtp_payload_len;
+
     // Success
-    return 0;
+    return AES67_STATUS_OK;
 }
 
 #if AES67_XMOS
-int aes67_rtp_recv(unsigned xtcp,
-                   aes67_socket_t *socket,
-                   aes67_rtp_packet_t *packet)
+aes67_status_t aes67_rtp_recv(unsigned xtcp,
+                              aes67_socket_t *socket,
+                              aes67_rtp_packet_t *packet)
 #else
-int aes67_rtp_recv(aes67_socket_t *socket, aes67_rtp_packet_t *packet)
+aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
+                              aes67_rtp_packet_t *packet)
 #endif
 {
 #if AES67_XMOS
-    int len =
-        aes67_socket_recv(xtcp, socket, packet->buffer, sizeof(packet->buffer));
+    aes67_status_t status = aes67_socket_recv_rtp(xtcp, socket, packet);
 #else
-    int len = aes67_socket_recv(socket, packet->buffer, sizeof(packet->buffer));
+    aes67_status_t status = aes67_socket_recv_rtp(socket, packet);
 #endif
+    if (status != AES67_STATUS_OK)
+        return status;
 
-    // Failure or too short to be an RTP packet?
-    if (len <= RTP_HEADER_LENGTH)
-        return -1;
+    status = aes67_rtp_parse(packet);
+    if (status != AES67_STATUS_OK)
+        return status;
 
-    packet->length = len;
+    return AES67_STATUS_OK;
+}
 
-    return aes67_rtp_parse(packet);
+aes67_status_t aes67_socket_recv_rtp(unsigned xtcp, const aes67_socket_t *sock, aes67_rtp_packet_t *packet) {
+    size_t rtp_buffer_size = sizeof(packet->rtp_header) + sizeof(packet->payload);
+    uint8_t *rtp_data = aes67_rtp_packet_start_rtp(packet);
+    size_t received_len;
+    aes67_status_t status;
+
+#if AES67_XMOS
+    status = aes67_socket_recv(xtcp, sock, rtp_data, rtp_buffer_size, &received_len);
+#else
+    status = aes67_socket_recv(sock, rtp_data, rtp_buffer_size, &received_len);
+#endif
+    if (status != AES67_STATUS_OK)
+        return status;
+
+    assert(received_len <= 0xffff);
+    packet->rtp_length = received_len;
+
+    return AES67_STATUS_OK;
+}
+
+aes67_status_t aes67_socket_send_rtp(unsigned xtcp, const aes67_socket_t *sock, const aes67_rtp_packet_t *packet) {
+    const uint8_t *rtp_data = aes67_const_rtp_packet_start_rtp(packet);
+    size_t rtp_length = aes67_rtp_packet_length_rtp(packet);
+
+#if AES67_XMOS
+    return aes67_socket_send(xtcp, sock, rtp_data, rtp_length);
+#else
+    return aes67_socket_send(sock, rtp_data, rtp_length);
+#endif
 }

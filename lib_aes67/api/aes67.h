@@ -61,6 +61,15 @@ typedef enum _aes67_status {
     AES67_STREAM_NOT_ADVERTISED,
     AES67_STREAM_NOT_STREAMING,
     AES67_STREAM_INVALID_FRAME_COUNT,
+    AES67_STATUS_INVALID_ETH_DEST_MAC,
+    AES67_STATUS_INVALID_ETH_TYPE,
+    AES67_STATUS_INVALID_IP_VERSION,
+    AES67_STATUS_INVALID_IP_PROTOCOL,
+    AES67_STATUS_INVALID_IP_SRC_ADDR,
+    AES67_STATUS_INVALID_IP_DEST_ADDR,
+    AES67_STATUS_INVALID_UDP_SRC_PORT,
+    AES67_STATUS_INVALID_UDP_DEST_PORT,
+    AES67_STATUS_INVALID_IP_CHECKSUM,
     AES67_STATUS_UNKNOWN_ERROR = 0xff
 } aes67_status_t;
 
@@ -155,10 +164,11 @@ void aes67_io_task(chanend ?ptp_svr,
                    chanend c_ptp[num_ptp],
                    uint32_t num_ptp,
                    enum ptp_server_type server_type);
-#endif // __XC__
 
 // depacketizer
-void aes67_rtp_receiver(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend buf_ctl);
+void aes67_rtp_receiver(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend buf_ctl,
+                        streaming chanend ?c_eth_rx_hp);
+#endif // __XC__
 
 void
 aes67_get_receiver_samples(int32_t id,
@@ -174,7 +184,12 @@ aes67_get_all_receiver_samples(ARRAY_OF_SIZE(uint32_t, samples, len),
                                uint32_t local_timestamp);
 
 // packetizer
-void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend media);
+#ifdef __XC__
+void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
+                      CLIENT_INTERFACE(ethernet_cfg_if?, i_eth_cfg),
+                      chanend data_ready,
+                      streaming chanend ?c_eth_tx_hp);
+#endif
 
 // call this before sending any samples
 void aes67_init_sender_buffers(void);

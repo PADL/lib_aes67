@@ -22,6 +22,7 @@ static int32_t lookup_receiver_from_fd(int32_t fd) {
     return -1;
 }
 
+
 static aes67_status_t aes67_close_receiver(
     client xtcp_if i_xtcp, const aes67_stream_info_t &stream_info, int32_t id) {
     aes67_socket_t &receiver_socket = receivers[id].socket;
@@ -51,6 +52,11 @@ static aes67_status_t aes67_open_receiver(
         aes67_close_receiver(i_xtcp, stream_info, id);
         return AES67_STATUS_SOCKET_ERROR;
     }
+
+    // Initialize socket port fields
+    receiver_socket.dest_port = AES67_DEFAULT_PORT;
+    memcpy(receiver_socket.dest_addr, rtp_addr, sizeof(rtp_addr));
+    receiver_socket.src_port = stream_info.rtp_port;
 
     return AES67_STATUS_OK;
 }
@@ -95,30 +101,33 @@ static void aes67_audio_fifo_handle_buf_ctl(chanend buf_ctl,
                                             timer tmr) {
     // FIXME: why is this cast necessary to avoid linking errors?
     unsafe {
-        __aes67_audio_fifo_handle_buf_ctl((unsigned int)buf_ctl, fifo,
-                                          buf_ctl_notified, (unsigned int)tmr);
+        aes67_audio_fifo_handle_buf_ctl_unsafe((unsigned int)buf_ctl, fifo,
+                                               buf_ctl_notified, (unsigned int)tmr);
     }
 }
 
 // depacketizer
-void aes67_rtp_receiver(client xtcp_if i_xtcp, chanend buf_ctl) {
+static unsafe void
+aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
+                          chanend buf_ctl,
+                          streaming chanend ?c_eth_rx_hp) {
+    ethernet_packet_info_t packet_info;
     aes67_rtp_packet_t packet = {0};
+    uint8_t *rxbuf = aes67_rtp_packet_start_raw(packet);
     timer t;
     unsigned time;
 
-    unsafe {
-        memset(&receivers, 0, sizeof(receivers));
+    memset(&receivers, 0, sizeof(receivers));
 
-        for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
-            for (size_t ch = 0; ch < AES67_MAX_CHANNELS_PER_RECEIVER; ch++) {
-                aes67_audio_fifo_t *fifo = &receivers[id].fifos[ch];
+    for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
+        for (size_t ch = 0; ch < AES67_MAX_CHANNELS_PER_RECEIVER; ch++) {
+            aes67_audio_fifo_t *fifo = &receivers[id].fifos[ch];
 
-                // initialize FIFO and mark as ready to receive media control
-                // commands
-                aes67_audio_fifo_init(fifo);
-                aes67_register_buf_fifo(id * NUM_AES67_RECEIVERS + ch,
-                                        (uintptr_t)fifo);
-            }
+            // initialize FIFO and mark as ready to receive media control
+            // commands
+            aes67_audio_fifo_init(fifo);
+            aes67_register_buf_fifo(id * NUM_AES67_RECEIVERS + ch,
+                                    (uintptr_t)fifo);
         }
     }
 
@@ -126,21 +135,19 @@ void aes67_rtp_receiver(client xtcp_if i_xtcp, chanend buf_ctl) {
 
     while (1) {
         select {
-        case i_xtcp.event_ready():
-            xtcp_event_type_t event;
-            aes67_socket_t *socket;
-            int32_t fd, id;
+            case i_xtcp.event_ready():
+                xtcp_event_type_t event;
+                aes67_socket_t *socket;
+                int32_t fd, id;
 
-            event = i_xtcp.get_event(fd);
-            if (event != XTCP_RECV_FROM_DATA ||
-                ((id = lookup_receiver_from_fd(fd)) == -1))
-                break;
+                event = i_xtcp.get_event(fd);
+                if (event != XTCP_RECV_FROM_DATA ||
+                    ((id = lookup_receiver_from_fd(fd)) == -1))
+                    break;
 
-            unsafe {
                 aes67_receiver_t &receiver = receivers[id];
 
-                if (aes67_rtp_recv(i_xtcp, &receivers[id].socket, &packet) ==
-                    0) {
+                if (aes67_rtp_recv(i_xtcp, &receivers[id].socket, &packet) == 0) {
                     aes67_status_t status;
 
                     status =
@@ -151,27 +158,59 @@ void aes67_rtp_receiver(client xtcp_if i_xtcp, chanend buf_ctl) {
                                      aes67_status_to_string(status));
 #endif
                 }
-            }
-
-            break;
-
-            case buf_ctl :> int fifo_index:
-                aes67_receiver_t &receiver =
-                    receivers[fifo_index / AES67_MAX_CHANNELS_PER_RECEIVER];
-                aes67_audio_fifo_t *fifo =
-                    &receiver
-                         .fifos[fifo_index % AES67_MAX_CHANNELS_PER_RECEIVER];
-
-                aes67_audio_fifo_handle_buf_ctl(buf_ctl, fifo,
-                                                &receiver.buf_ctl_notified, t);
                 break;
 
-            case t when timerafter(time) :> void:
-                unsafe {
+                case !isnull(c_eth_rx_hp) => ethernet_receive_hp_packet(c_eth_rx_hp, (uint8_t *)rxbuf, packet_info):
+                    // Parse IP header to extract destination address, it may be junk but we'll parse properly later
+                    uint32_t *dest_ip_ptr = (uint32_t *)(void *)(rxbuf + ETH_HEADER_LENGTH + 16);
+                    uint32_t dest_ip_host = ntohl(*dest_ip_ptr);
+                    int32_t id;
+
+                    // Find receiver with matching destination address
+                    for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
+                        if (receivers[id].socket.fd == -1)
+                            continue;
+                        else if (dest_ip_host == xtcp_ipaddr_to_host_uint32(receivers[id].socket.dest_addr))
+                            break;
+                    }
+
+                    if (id == NUM_AES67_RECEIVERS)
+                        break;
+
+                    aes67_receiver_t &receiver = receivers[id];
+                    aes67_status_t status = aes67_raw_recv_rtp(c_eth_rx_hp, receiver.socket, packet_info, packet);
+                    if (status != AES67_STATUS_OK)
+                        break;
+
+                    status = aes67_process_rtp_packet(buf_ctl, id, receiver, packet);
+#if DEBUG_RTP
+                    if (status != AES67_STATUS_OK)
+                        debug_printf("RTP HP packet error: %s\n", aes67_status_to_string(status));
+#endif
+                    break;
+
+                case buf_ctl :> int fifo_index:
+                    aes67_receiver_t &receiver =
+                        receivers[fifo_index / AES67_MAX_CHANNELS_PER_RECEIVER];
+                    aes67_audio_fifo_t *fifo =
+                        &receiver.fifos[fifo_index % AES67_MAX_CHANNELS_PER_RECEIVER];
+
+                    aes67_audio_fifo_handle_buf_ctl(buf_ctl, fifo, &receiver.buf_ctl_notified, t);
+                    break;
+
+                case t when timerafter(time) :> void:
                     aes67_poll_stream_info_changed(i_xtcp);
-                }
-                time += XS1_TIMER_HZ;
-                break;
+                    time += XS1_TIMER_HZ;
+                    break;
             }
+    }
+}
+
+void
+aes67_rtp_receiver(client xtcp_if i_xtcp,
+                   chanend buf_ctl,
+                   streaming chanend ?c_eth_rx_hp) {
+    unsafe {
+        aes67_rtp_receiver_unsafe(i_xtcp, buf_ctl, c_eth_rx_hp);
     }
 }

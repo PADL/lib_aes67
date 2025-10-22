@@ -210,10 +210,10 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
 }
 
 // Handle buffer control messages
-void __aes67_audio_fifo_handle_buf_ctl(unsigned int buf_ctl,
-                                       aes67_audio_fifo_t *fifo,
-                                       int *buf_ctl_notified,
-                                       unsigned int tmr) {
+void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
+                                            aes67_audio_fifo_t *fifo,
+                                            int *buf_ctl_notified,
+                                            unsigned int tmr) {
     int cmd = aes67_get_buf_ctl_cmd(buf_ctl);
 
     switch (cmd) {

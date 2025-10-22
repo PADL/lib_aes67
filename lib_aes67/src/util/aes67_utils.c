@@ -153,6 +153,24 @@ const char *aes67_status_to_string(aes67_status_t status) {
         return "Stream not streaming";
     case AES67_STREAM_INVALID_FRAME_COUNT:
         return "Stream invalid frame count";
+    case AES67_STATUS_INVALID_ETH_DEST_MAC:
+        return "Invalid Ethernet destination MAC";
+    case AES67_STATUS_INVALID_ETH_TYPE:
+        return "Invalid Ethernet type";
+    case AES67_STATUS_INVALID_IP_VERSION:
+        return "Invalid IP version";
+    case AES67_STATUS_INVALID_IP_PROTOCOL:
+        return "Invalid IP protocol";
+    case AES67_STATUS_INVALID_IP_SRC_ADDR:
+        return "Invalid IP source address";
+    case AES67_STATUS_INVALID_IP_DEST_ADDR:
+        return "Invalid IP destination address";
+    case AES67_STATUS_INVALID_UDP_SRC_PORT:
+        return "Invalid UDP source port";
+    case AES67_STATUS_INVALID_UDP_DEST_PORT:
+        return "Invalid UDP destination port";
+    case AES67_STATUS_INVALID_IP_CHECKSUM:
+        return "Invalid IP checksum";
     case AES67_STATUS_UNKNOWN_ERROR:
         /* fallthrough */
     default:

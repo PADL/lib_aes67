@@ -258,7 +258,7 @@ sap_advertise_sender(client xtcp_if i_xtcp,
     aes67_sdp_set_ipv4_session_origin(sdp, host.ipaddr);
     aes67_sdp_set_ptp_gmid(sdp, time_source_info.ptp_id);
     aes67_sdp_set_ptp_domain(sdp, time_source_info.ptp_domain);
- 
+
     status = aes67_sdp_to_string(sdp, sdp_string, sizeof(sdp_string));
     if (status != AES67_STATUS_OK)
         return status;
@@ -322,7 +322,7 @@ start_streaming(chanend media_control,
 
     aes67_sdp_set_defaults(sdp);
     aes67_sdp_set_ipv4_address(sdp, ip_addr);
-    aes67_sdp_set_port(sdp, AES67_DEFAULT_PORT);
+    aes67_sdp_set_port(sdp, AES67_DEFAULT_PORT_STR);
 
     uint32_t session_id;
     sap_timer :> session_id;

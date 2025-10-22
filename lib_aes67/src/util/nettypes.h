@@ -126,26 +126,48 @@ typedef struct tagged_ethernet_hdr_t {
     n16_t ethertype;
 } tagged_ethernet_hdr_t;
 
+/* Standard network byte order conversion functions */
+#if defined(__XC__) || defined(BUILDING_NETTYPES)
+uint16_t htons(uint16_t hostshort);
+uint16_t ntohs(uint16_t netshort);
+uint32_t htonl(uint32_t hostlong);
+uint32_t ntohl(uint32_t netlong);
+#else
+static inline uint16_t htons(uint16_t hostshort) {
+    return __builtin_bswap16(hostshort);
+}
+static inline uint16_t ntohs(uint16_t netshort) {
+    return __builtin_bswap16(netshort);
+}
+static inline uint32_t htonl(uint32_t hostlong) {
+    return __builtin_bswap32(hostlong);
+}
+static inline uint32_t ntohl(uint32_t netlong) {
+    return __builtin_bswap32(netlong);
+}
+#endif
+
 /* IP headers */
 typedef struct ip4_addr {
     unsigned long addr;
 } ip4_addr_t;
 
-static inline ip4_addr_t bswap_ip4addr(ip4_addr_t addr) {
+static inline ip4_addr_t ntoh_ip4addr(ip4_addr_t addr) {
     ip4_addr_t result;
-    uint32_t net_addr = addr.addr;
-
-    result.addr =
-        ((net_addr & 0x000000FF) << 24) | ((net_addr & 0x0000FF00) << 8) |
-        ((net_addr & 0x00FF0000) >> 8) | ((net_addr & 0xFF000000) >> 24);
-
+    result.addr = ntohl(addr.addr);
     return result;
 }
 
-static inline ip4_addr_t ntoh_ip4addr(ip4_addr_t addr) {
-    return bswap_ip4addr(addr);
+static inline ip4_addr_t hton_ip4addr(ip4_addr_t addr) {
+    ip4_addr_t result;
+    result.addr = htonl(addr.addr);
+    return result;
 }
 
-static inline ip4_addr_t hton_ip4addr(ip4_addr_t addr) {
-    return bswap_ip4addr(addr);
+static inline uint32_t xtcp_ipaddr_to_uint32(xtcp_ipaddr_t addr) {
+    return htonl((addr[0] << 24) | (addr[1] << 16) | (addr[2] << 8) | addr[3]);
+}
+
+static inline uint32_t xtcp_ipaddr_to_host_uint32(xtcp_ipaddr_t addr) {
+    return (addr[0] << 24) | (addr[1] << 16) | (addr[2] << 8) | addr[3];
 }

@@ -95,23 +95,6 @@ static int _create_socket(aes67_socket_t *sock,
     return retval;
 }
 
-static int _is_multicast(struct sockaddr_storage *addr) {
-    switch (addr->ss_family) {
-    case AF_INET: {
-        struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
-        return IN_MULTICAST(ntohl(addr4->sin_addr.s_addr));
-    } break;
-
-    case AF_INET6: {
-        struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
-        return IN6_IS_ADDR_MULTICAST(&addr6->sin6_addr);
-    } break;
-
-    default: {
-        return -1;
-    }
-    }
-}
 
 static int _sockaddr_len(sa_family_t family) {
     switch (family) {
@@ -478,7 +461,22 @@ aes67_status_t aes67_socket_open_send(aes67_socket_t *sock,
     return AES67_STATUS_OK;
 }
 
-int aes67_socket_recv(const aes67_socket_t *sock, uint8_t *data, size_t len) {
+
+void aes67_socket_close(aes67_socket_t *sock) {
+    // Drop Multicast membership
+    if (sock->joined_group) {
+        _leave_group(sock);
+        sock->joined_group = 0;
+    }
+
+    // Close the sockets
+    if (sock->fd >= 0) {
+        close(sock->fd);
+        sock->fd = -1;
+    }
+}
+
+aes67_status_t aes67_socket_recv(const aes67_socket_t *sock, uint8_t *buffer, size_t buffer_size, size_t *received_len) {
     fd_set readfds;
     struct timeval timeout;
     int packet_len, retval;
@@ -494,48 +492,32 @@ int aes67_socket_recv(const aes67_socket_t *sock, uint8_t *data, size_t len) {
     // Check return value
     if (retval == -1) {
         perror("select()");
-        return -1;
+        return AES67_STATUS_SOCKET_ERROR;
 
     } else if (retval == 0) {
         aes67_warn("Timed out waiting for packet after %ld seconds",
                    timeout.tv_sec);
-        return 0;
+        return AES67_STATUS_SOCKET_ERROR;
     }
 
     // Packet is waiting - read it in
-    packet_len = recv(sock->fd, data, len, 0);
+    packet_len = recv(sock->fd, buffer, buffer_size, 0);
 
-    return packet_len;
-}
-
-int aes67_socket_send(const aes67_socket_t *sock,
-                      const uint8_t *data,
-                      size_t len) {
-    aes67_debug("Sending %d byte packet", len);
-
-    int nbytes = sendto(sock->fd, data, len,
-                        0, // Flags
-                        (struct sockaddr *)&sock->dest_addr,
-                        _sockaddr_len(sock->dest_addr.ss_family));
-    if (nbytes <= 0) {
-        aes67_warn("sending packet failed: %s", strerror(errno));
-        return nbytes;
+    if (packet_len > 0) {
+        *received_len = packet_len;
+        return AES67_STATUS_OK;
     }
 
-    return nbytes;
+    return AES67_STATUS_SOCKET_ERROR;
 }
 
-void aes67_socket_close(aes67_socket_t *sock) {
-    // Drop Multicast membership
-    if (sock->joined_group) {
-        _leave_group(sock);
-        sock->joined_group = 0;
-    }
+aes67_status_t aes67_socket_send(const aes67_socket_t *sock, const uint8_t *buffer, size_t len) {
+    ssize_t bytes_sent = send(sock->fd, buffer, len, 0);
 
-    // Close the sockets
-    if (sock->fd >= 0) {
-        close(sock->fd);
-        sock->fd = -1;
+    if (bytes_sent == (ssize_t)len) {
+        return AES67_STATUS_OK;
+    } else {
+        return AES67_STATUS_SOCKET_ERROR;
     }
 }
 

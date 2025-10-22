@@ -133,5 +133,5 @@ void aes67_sdp_set_session_id(REFERENCE_PARAM(aes67_sdp_t, sdp),
                               uint64_t session_id);
 
 // RTP packet utility function that needs SDP
-int aes67_rtp_packet_duration(REFERENCE_PARAM(const aes67_rtp_packet_t, packet),
-                              REFERENCE_PARAM(const aes67_sdp_t, sdp));
+uint32_t aes67_rtp_packet_duration(REFERENCE_PARAM(const aes67_rtp_packet_t, packet),
+                                   REFERENCE_PARAM(const aes67_sdp_t, sdp));

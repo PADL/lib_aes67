@@ -285,7 +285,7 @@ aes67_status_t aes67_sdp_parse_string(const char *str, aes67_sdp_t *sdp) {
 void aes67_sdp_set_defaults(aes67_sdp_t *sdp) {
     memset(sdp, 0, sizeof(aes67_sdp_t));
 
-    aes67_sdp_set_port(sdp, AES67_DEFAULT_PORT);
+    aes67_sdp_set_port(sdp, AES67_DEFAULT_PORT_STR);
 
     sdp->session_name[0] = '\0';
     sdp->payload_type = -1;
@@ -445,10 +445,10 @@ aes67_sdp_to_string(const aes67_sdp_t *sdp, char *buffer, size_t buflen) {
 }
 
 // Return the duration of a packet in microseconds
-int aes67_rtp_packet_duration(const aes67_rtp_packet_t *packet,
-                              const aes67_sdp_t *sdp) {
-    int frames = ((packet->payload_length / (sdp->sample_size / 8)) /
-                  sdp->channel_count);
+uint32_t aes67_rtp_packet_duration(const aes67_rtp_packet_t *packet,
+                                   const aes67_sdp_t *sdp) {
+    uint32_t payload_length = aes67_rtp_packet_length_rtp(packet) - RTP_HEADER_LENGTH;
+    uint32_t frames = ((payload_length / (sdp->sample_size / 8)) / sdp->channel_count);
     return (frames * 1000000) / sdp->sample_rate;
 }
 

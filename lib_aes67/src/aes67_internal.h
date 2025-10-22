@@ -27,6 +27,8 @@
 #include "aes67.h"
 #include "nettypes.h"
 
+#define AES67_DEFAULT_PORT 5004
+
 #ifdef __XC__
 #define unsafe unsafe
 #else
@@ -37,6 +39,12 @@
 #define alias alias
 #else
 #define alias
+#endif
+
+#ifdef __XC__
+#define streaming streaming
+#else
+#define streaming
 #endif
 
 #define COMPILER_BARRIER() asm volatile("" ::: "memory")
@@ -72,7 +80,9 @@
 
 #define BIT(_x) (1 << (_x))
 
-#define AES67_DEFAULT_PORT "5004"
+#define STRINGIFY_HELPER(x) #x
+#define STRINGIFY(x) STRINGIFY_HELPER(x)
+#define AES67_DEFAULT_PORT_STR STRINGIFY(AES67_DEFAULT_PORT)
 #define AES67_DEFAULT_SAMPLE_RATE 48000
 #define AES67_DEFAULT_ENCODING AES67_ENCODING_L24
 
@@ -160,7 +170,7 @@ void aes67_media_control_init(void);
 
 #ifdef __XC__
 #pragma select handler
-void aes67_media_control(chanend media_control, client xtcp_if i_xtcp);
+void aes67_media_control(chanend media_control, client ethernet_cfg_if i_eth_cfg, client xtcp_if i_xtcp);
 #endif
 
 // LWIP things that aren't exposed

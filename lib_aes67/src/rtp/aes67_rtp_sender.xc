@@ -57,11 +57,24 @@ static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
         __dst = move(tmp);               \
     } while (0)
 
-void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend data_ready) {
+void
+aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
+                 CLIENT_INTERFACE(ethernet_cfg_if?, i_eth_cfg),
+                 chanend data_ready,
+                 streaming chanend ?c_eth_tx_hp) {
     uint32_t *movable tx_rdbuffer[NUM_AES67_SENDERS];
     int rtp_tx_socket;
     uint32_t time;
     timer t;
+    uint8_t src_mac_addr[MACADDR_NUM_BYTES];
+
+    // Get MAC address from ethernet config interface if available
+    if (!isnull(i_eth_cfg)) {
+        i_eth_cfg.get_macaddr(0, src_mac_addr);
+    } else {
+        // Use default/zero MAC address if no ethernet config interface
+        memset(src_mac_addr, 0, MACADDR_NUM_BYTES);
+    }
 
     // Initialize movable read buffers
     for (int32_t i = 0; i < NUM_AES67_SENDERS; i++) {
@@ -89,7 +102,7 @@ void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend data_ready) {
                 swapPointer(tx_rdbuffer[id], tmp);
 
                 // send RTP packet
-                aes67_send_rtp_packet(i_xtcp, id, tx_rdbuffer[id],
+                aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, id, tx_rdbuffer[id],
                                       senders[id].samples_per_packet, timestamp);
                 break;
             case t when timerafter(time) :> void:

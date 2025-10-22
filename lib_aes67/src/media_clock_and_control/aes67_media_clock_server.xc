@@ -397,7 +397,7 @@ void aes67_io_task(chanend ?ptp_svr,
                 break;
 #endif // AES67_NUM_MEDIA_OUTPUTS != 0
 
-            case aes67_media_control(media_control, i_xtcp):
+            case aes67_media_control(media_control, i_eth_cfg, i_xtcp):
                 break;
             }
     }
