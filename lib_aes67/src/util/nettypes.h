@@ -7,6 +7,10 @@
 
 /* Useful types for network packet processing */
 
+#ifndef MACADDR_NUM_BYTES
+#define MACADDR_NUM_BYTES 6
+#endif
+
 /* Host data types - little endian */
 typedef uint8_t u8_t;
 typedef uint16_t u16_t;
@@ -114,14 +118,14 @@ hton80(u80_t x) {
 
 /* Ethernet headers */
 typedef struct ethernet_hdr_t {
-    uint8_t dest_addr[6];
-    uint8_t src_addr[6];
+    uint8_t dest_addr[MACADDR_NUM_BYTES];
+    uint8_t src_addr[MACADDR_NUM_BYTES];
     n16_t ethertype;
 } ethernet_hdr_t;
 
 typedef struct tagged_ethernet_hdr_t {
-    uint8_t dest_addr[6];
-    uint8_t src_addr[6];
+    uint8_t dest_addr[MACADDR_NUM_BYTES];
+    uint8_t src_addr[MACADDR_NUM_BYTES];
     n32_t qtag;
     n16_t ethertype;
 } tagged_ethernet_hdr_t;

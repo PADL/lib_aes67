@@ -10,6 +10,7 @@
 #include <sys/types.h>
 
 #include "aes67_internal.h"
+#include "nettypes.h"
 
 #if !AES67_XMOS
 #include <sys/socket.h>
@@ -108,16 +109,10 @@ typedef struct {
 #define IP_VERSION_4 4
 #define IP_PROTO_UDP 17
 
-// Ethernet header structure
-typedef struct _aes67_eth_header {
-    uint8_t dest_mac[MACADDR_NUM_BYTES];
-    uint8_t src_mac[MACADDR_NUM_BYTES];
-    uint16_t ethertype;
-} aes67_eth_header_t;
 
 // IP header structure
 typedef struct _aes67_ip_header {
-    aes67_eth_header_t eth;
+    ethernet_hdr_t eth;
     uint8_t version_ihl;
     uint8_t tos;
     uint16_t total_length;

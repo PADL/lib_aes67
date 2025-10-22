@@ -79,11 +79,11 @@ static aes67_status_t validate_ethernet_header(aes67_rtp_packet_t &packet, const
     uint8_t expected_dest_mac[MACADDR_NUM_BYTES];
 
     ipv4_to_multicast_mac(sock.dest_addr, expected_dest_mac);
-    if (memcmp(packet.header.ip.eth.dest_mac, expected_dest_mac, MACADDR_NUM_BYTES) != 0)
+    if (memcmp(packet.header.ip.eth.dest_addr, expected_dest_mac, MACADDR_NUM_BYTES) != 0)
         return AES67_STATUS_INVALID_ETH_DEST_MAC;
 
-    packet.header.ip.eth.ethertype = ntohs(packet.header.ip.eth.ethertype);
-    if (packet.header.ip.eth.ethertype != ETH_TYPE_IP)
+    uint16_t ethertype_host = (packet.header.ip.eth.ethertype.data[0] << 8) | packet.header.ip.eth.ethertype.data[1];
+    if (ethertype_host != ETH_TYPE_IP)
         return AES67_STATUS_INVALID_ETH_TYPE;
 
     return AES67_STATUS_OK;
@@ -201,9 +201,10 @@ aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
     uint32_t total_packet_len = aes67_rtp_packet_length_raw(packet);
 
     // Format Ethernet header
-    ipv4_to_multicast_mac(sock.dest_addr, packet.header.ip.eth.dest_mac);
-    memcpy(packet.header.ip.eth.src_mac, src_mac_addr, MACADDR_NUM_BYTES);
-    packet.header.ip.eth.ethertype = htons(ETH_TYPE_IP);
+    ipv4_to_multicast_mac(sock.dest_addr, packet.header.ip.eth.dest_addr);
+    memcpy(packet.header.ip.eth.src_addr, src_mac_addr, MACADDR_NUM_BYTES);
+    packet.header.ip.eth.ethertype.data[0] = (ETH_TYPE_IP >> 8);
+    packet.header.ip.eth.ethertype.data[1] = (ETH_TYPE_IP & 0xff);
 
     // Format IP header
     packet.header.ip.version_ihl = (IP_VERSION_4 << 4) | 5; // IPv4 with 20-byte header
