@@ -35,17 +35,21 @@ aes67_poll_stream_info_changed(uint32_t time,
             sender.pending_ts = 0;    // Reset pending timestamp
             break;
         case AES67_STREAM_STATE_ENABLED:
-            if (sender.socket.fd != -1 && !src_ipaddr_changed)
-                break;
-            COMPILER_BARRIER();
-            sender.socket.fd = rtp_tx_socket;
-            memcpy(sender.socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
-            memcpy(sender.socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
-            sender.socket.dest_port = stream_info.dest_port;
-            sender.sequence_state.max_seq = time & 0xffff;
-            sender.media_clock = 0;
-            sender.frames_per_packet = (stream_info.sample_rate / 1000000) * stream_info.packet_time_us;
-            sender.samples_per_packet = sender.frames_per_packet * stream_info.channel_count;
+            if (sender.socket.fd == -1) {
+                // Stream is being newly enabled - full initialization
+                COMPILER_BARRIER();
+                sender.socket.fd = rtp_tx_socket;
+                memcpy(sender.socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
+                memcpy(sender.socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
+                sender.socket.dest_port = stream_info.dest_port;
+                sender.sequence_state.max_seq = time & 0xffff;
+                sender.media_clock = 0;
+                sender.frames_per_packet = (stream_info.sample_rate / 1000000) * stream_info.packet_time_us;
+                sender.samples_per_packet = sender.frames_per_packet * stream_info.channel_count;
+            } else if (src_ipaddr_changed) {
+                // Stream is already enabled but IP address changed - update only src_addr
+                memcpy(sender.socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
+            }
             break;
         case AES67_STREAM_STATE_UPDATING:
             break;
