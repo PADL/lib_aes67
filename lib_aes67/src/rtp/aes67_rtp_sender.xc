@@ -33,6 +33,7 @@ static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
         case AES67_STREAM_STATE_ENABLED:
             if (sender.socket.fd != -1)
                 break;
+            COMPILER_BARRIER();
             sender.socket.fd = rtp_tx_socket;
             sender.sequence_state.max_seq = time & 0xffff;
             sender.media_clock = 0;
