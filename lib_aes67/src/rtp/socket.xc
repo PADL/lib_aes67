@@ -9,37 +9,6 @@
 #include "rtp_protocol.h"
 
 
-aes67_status_t
-aes67_socket_open_recv(client xtcp_if xtcp,
-                       aes67_socket_t &sock,
-                       const char address[],
-                       uint16_t __port) {
-    xtcp_error_code_t err;
-
-    err = xtcp.listen(sock.fd, __port, sock.dest_addr);
-    if (err)
-        return err;
-
-    sock.dest_port = __port;
-
-    if (_is_multicast(sock.dest_addr))
-        xtcp.join_multicast_group(sock.dest_addr);
-
-    return AES67_STATUS_OK;
-}
-
-aes67_status_t
-aes67_socket_open_send(client xtcp_if xtcp,
-                       aes67_socket_t &sock,
-                       const char address[],
-                       uint16_t __port) {
-    sock.dest_port = __port;
-
-    if (_is_multicast(sock.dest_addr))
-        xtcp.join_multicast_group(sock.dest_addr);
-
-    return AES67_STATUS_OK;
-}
 
 aes67_status_t
 aes67_socket_recv(client xtcp_if xtcp,
