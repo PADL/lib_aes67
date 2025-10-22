@@ -74,20 +74,20 @@ static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
     status = aes67_sdp_get_ipv4_address(sdp, stream_info.dest_addr);
     if (status != AES67_STATUS_OK) {
         debug_printf("invalid SDP address %s\n", sdp.address);
-        return AES67_STATUS_INVALID_SDP_ADDRESS;
+        return status;
     }
 
     // Parse source IPv4 address (session origin)
     status = aes67_sdp_get_ipv4_session_origin(sdp, stream_info.src_addr);
     if (status != AES67_STATUS_OK) {
         debug_printf("invalid SDP session origin %s\n", sdp.session_origin);
-        return AES67_STATUS_INVALID_SDP_ADDRESS;
+        return status;
     }
 
     status = aes67_sdp_get_ipv4_port(sdp, stream_info.dest_port);
     if (status != AES67_STATUS_OK) {
         debug_printf("invalid SDP port %s\n", sdp.__port);
-        return AES67_STATUS_INVALID_UDP_DEST_PORT;
+        return status;
     }
 
     status = aes67_sdp_get_ptp_gmid(sdp, stream_info.gm_id.data);
