@@ -35,6 +35,8 @@ static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
                 break;
             COMPILER_BARRIER();
             sender.socket.fd = rtp_tx_socket;
+            memcpy(sender.socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
+            sender.socket.dest_port = stream_info.dest_port;
             sender.sequence_state.max_seq = time & 0xffff;
             sender.media_clock = 0;
             sender.frames_per_packet = (stream_info.sample_rate / 1000000) * stream_info.packet_time_us;

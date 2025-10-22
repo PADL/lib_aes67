@@ -61,6 +61,7 @@ aes67_open_receiver(client xtcp_if i_xtcp,
 
     receiver_socket.dest_port = stream_info.dest_port;
     memcpy(receiver_socket.dest_addr, dest_addr, sizeof(dest_addr));
+    memcpy(receiver_socket.src_addr, src_addr, sizeof(src_addr));
 
     return AES67_STATUS_OK;
 }
