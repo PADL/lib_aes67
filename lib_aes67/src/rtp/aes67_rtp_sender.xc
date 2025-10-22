@@ -18,7 +18,7 @@ static inline int aes67_is_sender_open(const aes67_sender_t &sender) {
     return sender.socket.fd != -1;
 }
 
-static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
+static void aes67_poll_stream_info_changed(uint32_t time, const xtcp_ipaddr_t src_ipaddr, int rtp_tx_socket) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_SENDERS; id++) {
         aes67_stream_info_t &stream_info = sender_streams[id];
@@ -36,6 +36,7 @@ static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
             COMPILER_BARRIER();
             sender.socket.fd = rtp_tx_socket;
             memcpy(sender.socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
+            memcpy(sender.socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
             sender.socket.dest_port = stream_info.dest_port;
             sender.sequence_state.max_seq = time & 0xffff;
             sender.media_clock = 0;
@@ -107,12 +108,12 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                 swapPointer(tx_rdbuffer[id], tmp);
 
                 // send RTP packet
-                aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, ipconfig.ipaddr, id, tx_rdbuffer[id],
+                aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, id, tx_rdbuffer[id],
                                       senders[id].samples_per_packet, timestamp);
                 break;
 
             case t when timerafter(time) :> void:
-                aes67_poll_stream_info_changed(time, rtp_tx_socket);
+                aes67_poll_stream_info_changed(time, ipconfig.ipaddr, rtp_tx_socket);
                 time += XS1_TIMER_HZ;
                 break;
 
