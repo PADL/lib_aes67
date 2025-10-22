@@ -55,16 +55,16 @@ static aes67_status_t aes67_open_receiver(
     return AES67_STATUS_OK;
 }
 
-static void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
+static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
-        aes67_stream_info_t stream_info = get_receiver_stream(id);
+        aes67_stream_info_t *unsafe stream_info = aes67_get_receiver_stream(id);
         aes67_socket_t &receiver_socket = receivers[id].socket;
 
-        switch (stream_info.state) {
+        switch (stream_info->state) {
         case AES67_STREAM_STATE_DISABLED:
             if (receiver_socket.fd != -1)
-                aes67_close_receiver(i_xtcp, stream_info, id);
+                aes67_close_receiver(i_xtcp, *stream_info, id);
             unsafe {
                 for (size_t ch = 0; ch < AES67_MAX_CHANNELS_PER_RECEIVER; ch++)
                     aes67_audio_fifo_disable(&receivers[id].fifos[ch]);
@@ -72,7 +72,7 @@ static void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
             break;
         case AES67_STREAM_STATE_ENABLED:
             if (receiver_socket.fd == -1)
-                aes67_open_receiver(i_xtcp, stream_info, id);
+                aes67_open_receiver(i_xtcp, *stream_info, id);
             break;
         case AES67_STREAM_STATE_POTENTIAL:
             fail("potential state invalid for sender stream");
@@ -163,7 +163,9 @@ void aes67_rtp_receiver(client xtcp_if i_xtcp, chanend buf_ctl) {
                 break;
 
             case t when timerafter(time) :> void:
-                aes67_poll_stream_info_changed(i_xtcp);
+                unsafe {
+                    aes67_poll_stream_info_changed(i_xtcp);
+                }
                 time += XS1_TIMER_HZ;
                 break;
             }

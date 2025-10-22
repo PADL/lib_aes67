@@ -39,6 +39,8 @@
 #define alias
 #endif
 
+#define COMPILER_BARRIER() asm volatile("" ::: "memory")
+
 // from lib_tsn ethernet_conf.h
 #define NUM_ETHERNET_PORTS 1
 #define NUM_ETHERNET_MASTER_PORTS 1

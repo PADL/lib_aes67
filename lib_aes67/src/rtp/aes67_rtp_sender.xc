@@ -21,7 +21,7 @@ static inline int aes67_is_sender_open(const aes67_sender_t &sender) {
 static void aes67_poll_stream_info_changed(uint32_t time, int rtp_tx_socket) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_SENDERS; id++) {
-        aes67_stream_info_t stream_info = get_sender_stream(id);
+        aes67_stream_info_t &stream_info = sender_streams[id];
         aes67_sender_t &sender = senders[id];
 
         switch (stream_info.state) {
@@ -78,8 +78,6 @@ void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend data_ready) {
         [[ordered]]
         select {
             case data_ready :> int32_t id:
-                aes67_stream_info_t stream_info = get_sender_stream(id);
-                aes67_sender_t &sender = senders[id];
                 uint32_t *movable &tmp;
                 uint32_t timestamp;
 
@@ -90,9 +88,8 @@ void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend data_ready) {
                 swapPointer(tx_rdbuffer[id], tmp);
 
                 // send RTP packet
-                aes67_send_rtp_packet(i_xtcp, stream_info, sender,
-                                      tx_rdbuffer[id], sender.samples_per_packet,
-                                      timestamp);
+                aes67_send_rtp_packet(i_xtcp, id, tx_rdbuffer[id],
+                                      senders[id].samples_per_packet, timestamp);
                 break;
             case t when timerafter(time) :> void:
                 aes67_poll_stream_info_changed(time, rtp_tx_socket);

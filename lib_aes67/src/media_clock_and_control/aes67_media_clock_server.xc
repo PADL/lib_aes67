@@ -347,9 +347,17 @@ void aes67_io_task(chanend ?ptp_svr,
 
                     info.active = sync_lock;
                     if (info.active) {
-                        aes67_stream_info_t s0 = get_receiver_stream(0);
-                        info.rate = s0.sample_rate ? s0.sample_rate
-                                                   : AES67_DEFAULT_SAMPLE_RATE;
+                        unsafe {
+                            aes67_stream_info_t *unsafe s0 = aes67_get_receiver_stream(0);
+
+                            if (s0->state == AES67_STREAM_STATE_POTENTIAL ||
+                                s0->state == AES67_STREAM_STATE_ENABLED) {
+                                COMPILER_BARRIER();
+                                info.rate = s0->sample_rate;
+                            } else {
+                                info.rate = AES67_DEFAULT_SAMPLE_RATE;
+                            }
+                        }
                     }
 
                     aes67_set_clock_info(info, ptp_svr, clk_time);

@@ -10,11 +10,6 @@
 #include "aes67_utils.h"
 #include "ptp_internal.h"
 
-aes67_stream_info_t get_sender_stream(int32_t id) {
-    assert(is_valid_sender_id(id));
-    return sender_streams[id];
-}
-
 // Convert local XMOS timestamp to RTP media clock
 // Local XMOS timestamp -> PTP timestamp -> RTP media clock (based on sample
 // rate)
@@ -77,14 +72,18 @@ static void encode_rtp_packet_header(aes67_rtp_packet_t *rtp_packet) {
 }
 
 aes67_status_t aes67_send_rtp_packet(unsigned i_xtcp,
-                                     const aes67_stream_info_t *stream_info,
-                                     aes67_sender_t *sender,
-                                     const uint32_t *samples,
+                                     int32_t id,
+                                     ARRAY_OF_SIZE(const uint32_t, samples, len),
                                      size_t len,
                                      uint32_t timestamp) {
+    aes67_stream_info_t *stream_info = &sender_streams[id];
+    aes67_sender_t *sender = &senders[id];
+
     if (stream_info->state != AES67_STREAM_STATE_ENABLED ||
         sender->socket.fd == -1)
         return AES67_STREAM_NOT_STREAMING;
+
+    COMPILER_BARRIER();
 
     if (len != stream_info->channel_count * sender->frames_per_packet)
         return AES67_STREAM_INVALID_FRAME_COUNT;

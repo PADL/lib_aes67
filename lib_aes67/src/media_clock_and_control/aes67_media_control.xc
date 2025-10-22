@@ -7,6 +7,7 @@
 
 #include "aes67_internal.h"
 #include "aes67_media_clock_internal.h"
+#include "aes67_rtp.h"
 #include "ptp_internal.h"
 #include "nettypes.h"
 
@@ -96,51 +97,53 @@ copy_stream_info(aes67_stream_info_t &dst_stream_info,
            sizeof(stream_info) - sizeof(uint32_t));
 }
 
-static aes67_status_t
+static unsafe aes67_status_t
 subscribe_or_resubscribe_stream(client xtcp_if i_xtcp,
                                 aes67_media_control_command_t command,
                                 const aes67_stream_info_t &stream_info) {
     const int32_t id = stream_info.stream_id;
-    aes67_stream_info_t &dst_stream_info = receiver_streams[id];
+    aes67_stream_info_t *unsafe dst_stream_info = aes67_get_receiver_stream(id);
 
     log_subscription_control_command(command, stream_info);
 
     // an existing stream can only be resubscribed to, or unsubscribed from
-    if (dst_stream_info.state == AES67_STREAM_STATE_ENABLED &&
+    if (dst_stream_info->state == AES67_STREAM_STATE_ENABLED &&
         command != AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
         return AES67_STATUS_ALREADY_SUBSCRIBED;
-    else if (dst_stream_info.state == AES67_STREAM_STATE_DISABLED &&
+    else if (dst_stream_info->state == AES67_STREAM_STATE_DISABLED &&
         command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
         return AES67_STATUS_NOT_SUBSCRIBED;
 
     // atomically set the stream state to updating, pending update
     // (word writes on XMOS are atomic)
-    dst_stream_info.state = AES67_STREAM_STATE_UPDATING;
+    dst_stream_info->state = AES67_STREAM_STATE_UPDATING;
 
     if (command == AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE)
-        leave_receiver_stream(i_xtcp, dst_stream_info);
+        leave_receiver_stream(i_xtcp, *dst_stream_info);
 
     join_receiver_stream(i_xtcp, stream_info);
 
-    copy_stream_info(dst_stream_info, stream_info);
+    copy_stream_info(*dst_stream_info, stream_info);
 
-    dst_stream_info.state = AES67_STREAM_STATE_POTENTIAL;
+    COMPILER_BARRIER();
+    dst_stream_info->state = AES67_STREAM_STATE_POTENTIAL;
 
     return AES67_STATUS_OK;
 }
 
-static aes67_status_t
+static unsafe aes67_status_t
 unsubscribe_stream(client xtcp_if i_xtcp,
                    const int32_t id) {
-    aes67_stream_info_t &stream_info = receiver_streams[id];
+    aes67_stream_info_t *unsafe stream_info = aes67_get_receiver_stream(id);
 
-    if (stream_info.state == AES67_STREAM_STATE_DISABLED)
+    if (stream_info->state == AES67_STREAM_STATE_DISABLED)
         return AES67_STATUS_NOT_SUBSCRIBED;
 
-    leave_receiver_stream(i_xtcp, stream_info);
+    leave_receiver_stream(i_xtcp, *stream_info);
 
     // atomic write, don't bother clearing other fields
-    stream_info.state = AES67_STREAM_STATE_DISABLED;
+    COMPILER_BARRIER();
+    stream_info->state = AES67_STREAM_STATE_DISABLED;
 
     return AES67_STATUS_OK;
 }
@@ -163,13 +166,17 @@ void aes67_media_control(chanend media_control, client xtcp_if i_xtcp) {
         aes67_stream_info_t stream_info;
 
         media_control :> stream_info;
-        subscribe_or_resubscribe_stream(i_xtcp, control_command, stream_info);
+        unsafe {
+            subscribe_or_resubscribe_stream(i_xtcp, control_command, stream_info);
+        }
         break;
     case AES67_MEDIA_CONTROL_COMMAND_UNSUBSCRIBE:
         int32_t id;
 
         media_control :> id;
-        unsubscribe_stream(i_xtcp, id);
+        unsafe {
+            unsubscribe_stream(i_xtcp, id);
+        }
         break;
     case AES67_MEDIA_CONTROL_COMMAND_GET_CLOCK_INFO:
         media_control <: ptp_media_clock.info;
@@ -190,6 +197,7 @@ void aes67_media_control(chanend media_control, client xtcp_if i_xtcp) {
         media_control :> stream_info;
         sender_streams[stream_info.stream_id].state = AES67_STREAM_STATE_UPDATING;
         copy_stream_info(sender_streams[stream_info.stream_id], stream_info);
+        COMPILER_BARRIER();
         sender_streams[stream_info.stream_id].state = AES67_STREAM_STATE_ENABLED;
         break;
     case AES67_MEDIA_CONTROL_COMMAND_STOP_STREAMING:

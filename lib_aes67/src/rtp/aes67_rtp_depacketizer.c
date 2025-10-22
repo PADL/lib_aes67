@@ -8,9 +8,10 @@
 
 #include "aes67_rtp.h"
 
-aes67_stream_info_t get_receiver_stream(int32_t id) {
+aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id) {
     assert(is_valid_receiver_id(id));
-    return receiver_streams[id];
+
+    return &receiver_streams[id];
 }
 
 static int get_absolute_media_clock(const aes67_stream_info_t *stream_info,
@@ -79,6 +80,15 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
                                         aes67_receiver_t *receiver,
                                         const aes67_rtp_packet_t *packet) {
     aes67_stream_info_t *stream_info = &receiver_streams[id];
+    int need_open = 0;
+
+    if (stream_info->state == AES67_STREAM_STATE_POTENTIAL)
+        need_open = 1;
+    else if (stream_info->state != AES67_STREAM_STATE_ENABLED)
+        return AES67_STATUS_OK;
+
+    COMPILER_BARRIER();
+
     size_t frame_size = stream_info->sample_size * stream_info->channel_count;
 
     if (packet->version != RTP_VERSION)
@@ -88,20 +98,11 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     else if ((packet->payload_length % frame_size) != 0)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
-    switch (stream_info->state) {
-    case AES67_STREAM_STATE_ENABLED:
-        break; // nothing to do, already streaming
-    case AES67_STREAM_STATE_POTENTIAL:
-        open_receiver_stream(stream_info, receiver, packet);
-        break;
-    case AES67_STREAM_STATE_UPDATING:
-        /* fallthrough */
-    default:
-        return AES67_STATUS_OK; // discard during update
-    }
-
     if (!aes67_rtp_update_sequence(&receiver->sequence_state, packet->sequence))
         return AES67_STATUS_RTP_PACKET_OUT_OF_SEQUENCE;
+
+    if (need_open)
+        open_receiver_stream(stream_info, receiver, packet);
 
     uint64_t media_clock;
     int update_media_clock = get_absolute_media_clock(

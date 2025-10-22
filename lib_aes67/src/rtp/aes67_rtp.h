@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __XC__
+extern "C" {
+#endif
+
 #include <aes67_internal.h>
 #include "rtp_protocol.h"
 #include "aes67_xfifo.h"
@@ -13,8 +17,6 @@ typedef struct _aes67_receiver {
 } aes67_receiver_t;
 
 extern aes67_receiver_t receivers[NUM_AES67_RECEIVERS];
-
-aes67_stream_info_t get_receiver_stream(int32_t id);
 
 aes67_status_t
 aes67_process_rtp_packet(chanend buf_ctl,
@@ -39,12 +41,9 @@ typedef struct _aes67_sender {
 
 extern aes67_sender_t senders[NUM_AES67_SENDERS];
 
-aes67_stream_info_t get_sender_stream(int32_t id);
-
 aes67_status_t
 aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
-                      REFERENCE_PARAM(const aes67_stream_info_t, stream_info),
-                      REFERENCE_PARAM(aes67_sender_t, sender),
+                      int32_t id,
                       ARRAY_OF_SIZE(const uint32_t, samples, len),
                       size_t len,
                       uint32_t timestamp);
@@ -52,3 +51,9 @@ aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
 // Buffer management functions for double buffering
 uint32_t *unsafe aes67_get_tx_buffer0(int32_t sender_id);
 uint32_t *unsafe aes67_get_tx_buffer1(int32_t sender_id);
+
+aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id);
+
+#ifdef __XC__
+}
+#endif
