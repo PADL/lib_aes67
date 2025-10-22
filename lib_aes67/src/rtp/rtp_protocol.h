@@ -42,10 +42,15 @@ typedef struct {
 
 // ------- RTP packet handling ---------
 
-#define RTP_MAX_PAYLOAD (1440)
+#define ETH_HEADER_LENGTH (14)
+#define IP_HEADER_LENGTH (200)
+#define UDP_HEADER_LENGTH (8)
 #define RTP_HEADER_LENGTH (12)
+#define RTP_MAX_PAYLOAD (1440)
+
+#define ETH_MTU (ETH_HEADER_LENGTH + IP_HEADER_LENGTH + UDP_HEADER_LENGTH + RTP_HEADER_LENGTH + RTP_MAX_PAYLOAD)
+
 #define RTP_VERSION (2)
-#define ETH_MTU (1500)
 
 typedef struct {
     uint8_t
@@ -98,10 +103,6 @@ typedef struct {
 #define RTP_EXT_DATA_PTR(ext_ptr) ((uint8_t *)(ext_ptr) + 4)
 
 // Raw Ethernet packet support
-#define ETH_HEADER_LENGTH 14
-#define IP_HEADER_LENGTH 20
-#define UDP_HEADER_LENGTH 8
-
 // Protocol constants
 #define ETH_TYPE_IP 0x0800
 #define IP_VERSION_4 4
@@ -148,8 +149,7 @@ typedef struct _aes67_rtp_packet {
     uint16_t rtp_length;
     aes67_udp_header_t header;
     aes67_rtp_header_t rtp_header;
-    uint8_t payload[ETH_MTU - ETH_HEADER_LENGTH - IP_HEADER_LENGTH -
-                    IP_HEADER_LENGTH - RTP_HEADER_LENGTH];
+    uint8_t payload[RTP_MAX_PAYLOAD];
 } aes67_rtp_packet_t;
 
 // return a pointer to the start of the Ethernet header

@@ -98,11 +98,11 @@ aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
 }
 
 #if AES67_XMOS
-aes67_status_t aes67_socket_recv_rtp(unsigned xtcp, const aes67_socket_t *sock, aes67_rtp_packet_t *packet) {
+aes67_status_t aes67_socket_recv_rtp(chanend xtcp, const aes67_socket_t *sock, aes67_rtp_packet_t *packet) {
 #else
 aes67_status_t aes67_socket_recv_rtp(const aes67_socket_t *sock, aes67_rtp_packet_t *packet) {
 #endif
-    size_t rtp_buffer_size = sizeof(packet->rtp_header) + sizeof(packet->payload);
+    const size_t rtp_buffer_size = RTP_HEADER_LENGTH + RTP_MAX_PAYLOAD;
     uint8_t *rtp_data = aes67_rtp_packet_start_rtp(packet);
     size_t received_len;
     aes67_status_t status;
@@ -122,7 +122,7 @@ aes67_status_t aes67_socket_recv_rtp(const aes67_socket_t *sock, aes67_rtp_packe
 }
 
 #if AES67_XMOS
-aes67_status_t aes67_socket_send_rtp(unsigned xtcp, const aes67_socket_t *sock, const aes67_rtp_packet_t *packet) {
+aes67_status_t aes67_socket_send_rtp(chanend xtcp, const aes67_socket_t *sock, const aes67_rtp_packet_t *packet) {
 #else
 aes67_status_t aes67_socket_send_rtp(const aes67_socket_t *sock, const aes67_rtp_packet_t *packet) {
 #endif
