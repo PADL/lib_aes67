@@ -3,13 +3,8 @@
 #pragma once
 
 #include <inttypes.h>
+#include <ethernet.h>
 #include <xtcp.h>
-
-/* Useful types for network packet processing */
-
-#ifndef MACADDR_NUM_BYTES
-#define MACADDR_NUM_BYTES 6
-#endif
 
 /* Host data types - little endian */
 typedef uint8_t u8_t;
