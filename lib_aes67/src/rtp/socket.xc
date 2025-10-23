@@ -8,28 +8,33 @@
 
 #include "rtp_protocol.h"
 
-
-
 aes67_status_t
 aes67_socket_recv(client xtcp_if xtcp,
                   const aes67_socket_t &sock,
-                  uint8_t buffer[buffer_size], size_t buffer_size, size_t &received_len) {
+                  uint8_t buffer[buffer_size],
+                  size_t buffer_size,
+                  size_t &received_len) {
     uint16_t port_number = 0;
+    int nread;
 
-    int len = xtcp.recvfrom(sock.fd, buffer, buffer_size, sock.src_addr, port_number);
-    if (len <= 0)
+    nread = xtcp.recvfrom(sock.fd, buffer, buffer_size, sock.src_addr, port_number);
+    if (nread <= 0)
         return AES67_STATUS_SOCKET_ERROR;
 
-    received_len = len;
+    received_len = nread;
+
     return AES67_STATUS_OK;
 }
 
-aes67_status_t aes67_socket_send(client xtcp_if xtcp,
-                                 const aes67_socket_t &sock,
-                                 const uint8_t buffer[len], size_t len) {
-    int bytes_sent = xtcp.sendto(sock.fd, buffer, len, sock.dest_addr, sock.dest_port);
+aes67_status_t
+aes67_socket_send(client xtcp_if xtcp,
+                  const aes67_socket_t &sock,
+                  const uint8_t buffer[len],
+                  size_t len) {
+    int nsent;
 
-    if (bytes_sent != (int)len)
+    nsent = xtcp.sendto(sock.fd, buffer, len, sock.dest_addr, sock.dest_port);
+    if (nsent != (int)len)
         return AES67_STATUS_SOCKET_ERROR;
 
     return AES67_STATUS_OK;
@@ -42,6 +47,7 @@ void aes67_socket_close(client xtcp_if xtcp, aes67_socket_t &sock) {
     }
 
     xtcp.close(sock.fd);
+    sock.fd = -1;
 }
 
 static uint16_t calculate_ip_checksum(const void *unsafe header, size_t len) {
@@ -75,47 +81,52 @@ void ipv4_to_multicast_mac(xtcp_ipaddr_t ipv4_addr, uint8_t dest_mac[MACADDR_NUM
     dest_mac[5] = ipv4_addr[3];
 }
 
-static aes67_status_t validate_ethernet_header(aes67_rtp_packet_t &packet, const aes67_socket_t &sock) {
+static aes67_status_t
+validate_ethernet_header(aes67_rtp_packet_t &packet, const aes67_socket_t &sock) {
     uint8_t expected_dest_mac[MACADDR_NUM_BYTES];
+    uint16_t ethertype_host;
 
     ipv4_to_multicast_mac(sock.dest_addr, expected_dest_mac);
     if (memcmp(packet.header.ip.eth.dest_addr, expected_dest_mac, MACADDR_NUM_BYTES) != 0)
         return AES67_STATUS_INVALID_ETH_DEST_MAC;
 
-    uint16_t ethertype_host = (packet.header.ip.eth.ethertype.data[0] << 8) | packet.header.ip.eth.ethertype.data[1];
+    ethertype_host = (packet.header.ip.eth.ethertype.data[0] << 8) | packet.header.ip.eth.ethertype.data[1];
     if (ethertype_host != ETH_TYPE_IP)
         return AES67_STATUS_INVALID_ETH_TYPE;
 
     return AES67_STATUS_OK;
 }
 
-static aes67_status_t validate_ip_header(aes67_rtp_packet_t &packet, const aes67_socket_t &sock,
-                                        uint32_t total_packet_len, uint8_t &ip_header_length) {
+static aes67_status_t
+validate_ip_header(aes67_rtp_packet_t &packet,
+                   const aes67_socket_t &sock,
+                   uint32_t total_packet_len,
+                   uint8_t &ip_header_length) {
     if ((packet.header.ip.version_ihl >> 4) != IP_VERSION_4)
         return AES67_STATUS_INVALID_IP_VERSION;
 
     // Get and validate IP header length (IHL field)
     uint8_t ihl = packet.header.ip.version_ihl & 0x0F;
-    if (ihl < 5 || ihl > 15) // Valid range: 20-60 bytes (5-15 * 4)
-        return AES67_STATUS_BAD_PACKET_LENGTH;
-    ip_header_length = ihl * 4;
-
     if (ihl != 5)
         return AES67_STATUS_BAD_PACKET_LENGTH;
+
+    ip_header_length = ihl * 4;
 
     if (packet.header.ip.protocol != IP_PROTO_UDP)
         return AES67_STATUS_INVALID_IP_PROTOCOL;
 
     // Validate IP checksum (before converting to host byte order)
     uint16_t received_checksum = packet.header.ip.checksum;
-    packet.header.ip.checksum = 0;  // Set to 0 for calculation
-    unsafe {
-        uint16_t calculated_checksum = calculate_ip_checksum(
-            &packet.header.ip.version_ihl, ip_header_length);
+    uint16_t calculated_checksum;
 
-        if (received_checksum != calculated_checksum)
-            return AES67_STATUS_INVALID_IP_CHECKSUM;
+    packet.header.ip.checksum = 0;  // Set to 0 for calculation
+
+    unsafe {
+        calculated_checksum = calculate_ip_checksum(&packet.header.ip.version_ihl, ip_header_length);
     }
+
+    if (received_checksum != calculated_checksum)
+        return AES67_STATUS_INVALID_IP_CHECKSUM;
 
     packet.header.ip.checksum = received_checksum;  // Restore for byte order conversion
 
@@ -137,11 +148,9 @@ static aes67_status_t validate_ip_header(aes67_rtp_packet_t &packet, const aes67
     uint16_t ip_total_length = ntohs(packet.header.ip.total_length);
     uint16_t flags_fragment = ntohs(packet.header.ip.flags_fragment);
 
-    // Validate total length is reasonable
     if (ip_total_length < ip_header_length)
         return AES67_STATUS_BAD_PACKET_LENGTH;
-
-    if (ip_total_length + ETH_HEADER_LENGTH > total_packet_len)
+    else if (ip_total_length + ETH_HEADER_LENGTH > total_packet_len)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
     // Validate MF (More Fragments) flag is zero - no fragmentation allowed
@@ -161,7 +170,8 @@ static aes67_status_t validate_ip_header(aes67_rtp_packet_t &packet, const aes67
     return AES67_STATUS_OK;
 }
 
-static aes67_status_t validate_udp_header(aes67_rtp_packet_t &packet, const aes67_socket_t &sock) {
+static aes67_status_t
+validate_udp_header(aes67_rtp_packet_t &packet, const aes67_socket_t &sock) {
     // Convert UDP header to host byte order for validation
     uint16_t udp_src_port = ntohs(packet.header.src_port);
     uint16_t udp_dest_port = ntohs(packet.header.dest_port);
@@ -198,7 +208,6 @@ aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
                    const aes67_socket_t &sock,
                    aes67_rtp_packet_t &packet) {
     uint32_t rtp_packet_len = aes67_rtp_packet_length_rtp(packet);
-    uint32_t total_packet_len = aes67_rtp_packet_length_raw(packet);
 
     // Format Ethernet header
     ipv4_to_multicast_mac(sock.dest_addr, packet.header.ip.eth.dest_addr);
@@ -231,6 +240,8 @@ aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
     packet.header.dest_port = htons(sock.dest_port);
     packet.header.length = htons(UDP_HEADER_LENGTH + rtp_packet_len);
     packet.header.checksum = 0; // UDP checksum is optional for IPv4
+
+    uint32_t total_packet_len = aes67_rtp_packet_length_raw(packet);
 
     unsafe {
         ethernet_send_hp_packet(c_eth_tx_hp, (uint8_t *)aes67_rtp_packet_start_raw(packet),
@@ -267,6 +278,7 @@ aes67_raw_recv_rtp(streaming unsafe chanend c_eth_rx_hp,
     // validate UDP header does not extend past the end of the Ethernet packet
     // the UDP header length (packet.header.length) includes the size of the
     // UDP header as well as the UDP payload (i.e. not the Ethernet or IP headers)
+
     if (packet.header.length > packet_info.len - ETH_HEADER_LENGTH - IP_HEADER_LENGTH)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
