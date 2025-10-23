@@ -83,7 +83,8 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
     xtcp_ipconfig_t ipconfig;
 
     // Get MAC address from ethernet config interface if available
-    if (!isnull(i_eth_cfg)) {
+    if (!isnull(c_eth_tx_hp)) {
+        assert(!isnull(i_eth_cfg));
         i_eth_cfg.get_macaddr(0, src_mac_addr);
     } else {
         // Use default/zero MAC address if no ethernet config interface
