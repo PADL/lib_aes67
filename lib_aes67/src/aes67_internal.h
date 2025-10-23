@@ -89,8 +89,6 @@
 #define NANOSECONDS_PER_SECOND (1000000000)
 #define MAX_REASONABLE_DELAY_NS (1000000000UL) // 1 second max delay
 
-#define AES67_DANTE_DSCP_COMPAT 1
-
 #define DSCP_AF41 34 // media traffic
 #define DSCP_EF 46 // PTPv2 (AES67), audio (Dante)
 #define DSCP_CS7 56 // PTPv2 (Dante)
