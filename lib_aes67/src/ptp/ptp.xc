@@ -1858,10 +1858,9 @@ void ptp_init(client interface ethernet_cfg_if i_eth_cfg,
         assert(err == XTCP_SUCCESS);
 
         // Set DSCP for PTP event messages
-        uint32_t dscp = DSCP_PTP_EVENT << 2;
+        uint8_t dscp = DSCP_PTP_EVENT << 2;
         err = i_xtcp.setsockopt(g_ptp_l3_event_tx, XTCP_SOCKET_LEVEL_IP,
-                                XTCP_IP_SOCKET_OPTION_TOS,
-                                (const uint8_t*)&dscp, sizeof(dscp));
+                                XTCP_IP_SOCKET_OPTION_TOS, &dscp, 1);
         assert(err == XTCP_SUCCESS);
 
         g_ptp_l3_general_rx = i_xtcp.socket(XTCP_PROTOCOL_UDP);
@@ -1877,8 +1876,7 @@ void ptp_init(client interface ethernet_cfg_if i_eth_cfg,
         // Set DSCP for PTP general messages
         dscp = DSCP_PTP_GENERAL << 2;
         err = i_xtcp.setsockopt(g_ptp_l3_general_tx, XTCP_SOCKET_LEVEL_IP,
-                                XTCP_IP_SOCKET_OPTION_TOS,
-                                (const uint8_t*)&dscp, sizeof(dscp));
+                                XTCP_IP_SOCKET_OPTION_TOS, &dscp, 1);
         assert(err == XTCP_SUCCESS);
     }
 
