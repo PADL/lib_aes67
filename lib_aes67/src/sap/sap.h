@@ -97,7 +97,7 @@ typedef struct _aes67_sdp {
 typedef struct _aes67_sdp_fast_connect {
     uint32_t magic; // 0xAE5675DB
     uint32_t valid; // bitmask of valid receivers
-    aes67_sdp_t[NUM_AES67_RECEIVERS];
+    aes67_sdp_t sdp[NUM_AES67_RECEIVERS];
 } aes67_sdp_fast_connect_t;
 
 aes67_status_t aes67_sdp_parse_string(const char str[],
