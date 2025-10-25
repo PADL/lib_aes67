@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <xassert.h>
 
-#include "bytestoint.h"
 #include "rtp_protocol.h"
 #include "sap/sap.h"
 
