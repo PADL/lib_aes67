@@ -283,6 +283,9 @@ static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
             sdp_unsubscribe(id, sdp);
             media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
             media_control <: id;
+#if AES67_FAST_CONNECT_ENABLED
+            sdp_store_fast_connect_info();
+#endif
         } else if (!sdp_is_subscribed(id)) {
             debug_printf("subscribing to stream %s channel count %d sample "
                          "size %d sample rate %d encoding %s\n",
