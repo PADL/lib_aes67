@@ -291,6 +291,9 @@ static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
             sdp_subscribe(id, sdp);
             media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
             media_control <: stream_info;
+#if AES67_FAST_CONNECT_ENABLED
+            sdp_store_fast_connect_info();
+#endif
         } else if (sdp_equal(sdp_subscriptions[id], sdp) == 0) {
             debug_printf("resubscribing to changed stream %s\n",
                          sdp.session_name);
@@ -321,6 +324,11 @@ static void sap_handle_event(client xtcp_if i_xtcp,
 
         sap_handle_message(i_xtcp, media_control, buf, nrecv);
         break;
+    case XTCP_IFUP:
+#if AES67_FAST_CONNECT_ENABLED
+        sdp_start_fast_connect();
+        break;
+#endif
     default:
         break;
     }
