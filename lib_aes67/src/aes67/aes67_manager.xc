@@ -139,6 +139,93 @@ static int sdp_equal(const aes67_sdp_t &sdp1, const aes67_sdp_t &sdp2) {
     return memcmp(&sdp1, &sdp2, sizeof(sdp2));
 }
 
+#if AES67_FAST_CONNECT_ENABLED
+static size_t sdp_get_fast_connect_page_count(uint32_t valid_flags, uint32_t &page_size) {
+    page_size = fl_getPageSize();
+
+    size_t validCount = popcount(valid_flags);
+    size_t effectiveLength = sizeof(uint32_t) + sizeof(uint32_t) +
+                             (validCount * sizeof(aes67_sdp_t));
+
+    return (effectiveLength + page_size - 1) / page_size;
+}
+
+static void sdp_erase_fast_connect_info(void) {
+    aes67_sdp_fast_connect_t fc;
+
+    if (fl_readDataPage(0, (uint8_t *)&fc) != 0)
+        return;
+
+    if (fc.magic == AES67_FAST_CONNECT_MAGIC)
+        fl_eraseDataSector(0);
+}
+
+static void sdp_start_fast_connect(void) {
+#define DEFAULT_PAGE_SIZE (256)
+    union {
+        aes67_sdp_fast_connect_t fc;
+        uint8_t buffer[sizeof(aes67_sdp_fast_connect_t) / DEFAULT_PAGE_SIZE + DEFAULT_PAGE_SIZE];
+    } u;
+    uint32_t page_size;
+
+    if (fl_readDataPage(0, (uint8_t *)&u.fc) != 0 ||
+        u.fc.magic != AES67_FAST_CONNECT_MAGIC)
+        return;
+
+    size_t page_count = sdp_get_fast_connect_page_count(u.fc.valid, page_size);
+
+    if (page_size > DEFAULT_PAGE_SIZE)
+        return;
+
+    uint8_t *p = (uint8_t *)&u.fc + page_size;
+    for (size_t i = 1; i < page_count; i++) {
+        if (fl_readDataPage(i, p) != 0)
+            return;
+        p += page_size;
+    }
+
+    for (size_t id = 0, sdp_index = 0; id < NUM_AES67_RECEIVERS; id++) {
+        if ((u.fc.valid & BIT(id)) == 0)
+            continue;
+
+        memcpy(&sdp_subscriptions[id], &u.fc.sdp[sdp_index], sizeof(aes67_sdp_t));
+        memcpy(session_subscriptions[id], u.fc.sdp[sdp_index].session_name,
+               sizeof(u.fc.sdp[sdp_index].session_name));
+
+        sdp_index++;
+    }
+}
+
+static void sdp_store_fast_connect_info(void) {
+    aes67_sdp_fast_connect_t fc;
+    uint32_t page_size;
+
+    if (fl_readDataPage(0, (uint8_t *)&fc) != 0 ||
+        fc.magic == AES67_FAST_CONNECT_MAGIC);
+        fl_eraseDataSector(0);
+
+    memset(&fc, 0, sizeof(fc));
+
+    fc.magic = AES67_FAST_CONNECT_MAGIC;
+
+    for (size_t id = 0, i = 0; id < NUM_AES67_RECEIVERS; id++) {
+        if (!sdp_is_subscribed(id))
+            continue;
+
+        fc.valid |= BIT(id);
+        memcpy(&fc.sdp[i++], &sdp_subscriptions[id], sizeof(aes67_sdp_t));
+    }
+
+    size_t page_count = sdp_get_fast_connect_page_count(fc.valid, page_size);
+    uint8_t *p = (uint8_t *)&fc;
+
+    for (size_t i = 0; i < page_count; i++) {
+        fl_writeDataPage(i, p);
+        p += page_size;
+    }
+}
+#endif // AES67_FAST_CONNECT_ENABLED
+
 static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
                                          chanend media_control,
                                          uint8_t buf[len],
@@ -405,7 +492,8 @@ stop_streaming(chanend media_control, int32_t id) {
 aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
               size_t num_aes67_clients,
               client xtcp_if i_xtcp,
-              chanend media_control) {
+              chanend media_control,
+              fl_QSPIPorts &?qspi_ports) {
     timer sap_timer;
     int sap_timeout;
     int sap_rx_socket = -1;
@@ -414,6 +502,14 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
     uint32_t pending_events = 0;
     aes67_time_source_info_t last_time_source_info;
     aes67_media_clock_info_t last_media_clock_info;
+
+#if AES67_FAST_CONNECT_ENABLED
+    if (isnull(qspi_ports)) {
+        fail("Fast connect enabled, but QSPI ports null");
+    } else if (fl_connect(qspi_ports)) {
+        fail("Could not connect to flash");
+    }
+#endif
 
     sdp_init_subscriptions();
     sdp_init_advertisements();

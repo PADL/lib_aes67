@@ -80,6 +80,15 @@
 
 #define BIT(_x) (1 << (_x))
 
+static inline int popcount(uint32_t x) {
+    uint8_t count;
+
+    for (count = 0; x; count++)
+        x &= x - 1;
+
+    return count;
+}
+
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
 #define AES67_DEFAULT_PORT_STR STRINGIFY(AES67_DEFAULT_PORT)

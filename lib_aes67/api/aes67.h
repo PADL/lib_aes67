@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <xtcp.h>
 #include <ptp.h>
+#include <quadflash.h>
 
 #ifndef AES67_MAX_CHANNELS_PER_RECEIVER
 #define AES67_MAX_CHANNELS_PER_RECEIVER 8
@@ -151,10 +152,11 @@ interface aes67_interface {
 aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
               size_t num_aes67_clients,
               client xtcp_if i_xtcp,
-              chanend media_control);
+              chanend media_control,
+              fl_QSPIPorts &?qspi_ports); // only required for fast connect
 
-#define AES67_FLAG_PTP_SLAVE_ONLY   0x01
-#define AES67_FLAG_RTP_ETH_HP               0x02
+#define AES67_FLAG_PTP_SLAVE_ONLY 0x01
+#define AES67_FLAG_RTP_ETH_HP 0x02
 
 void aes67_io_task(chanend ?ptp_svr,
                    chanend buf_ctl[num_buf_ctl],
