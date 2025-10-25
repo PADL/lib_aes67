@@ -43,7 +43,11 @@ typedef struct {
 
 // ------- RTP packet handling ---------
 
+#if AES67_VLAN_ID != 0
+#define ETH_HEADER_LENGTH (18)  // 14 + 4 for VLAN tag
+#else
 #define ETH_HEADER_LENGTH (14)
+#endif
 #define IP_HEADER_LENGTH (200)
 #define UDP_HEADER_LENGTH (8)
 #define RTP_HEADER_LENGTH (12)
@@ -112,7 +116,11 @@ typedef struct {
 
 // IP header structure
 typedef struct _aes67_ip_header {
+#if AES67_VLAN_ID != 0
+    tagged_ethernet_hdr_t eth;
+#else
     ethernet_hdr_t eth;
+#endif
     uint8_t version_ihl;
     uint8_t tos;
     uint16_t total_length;

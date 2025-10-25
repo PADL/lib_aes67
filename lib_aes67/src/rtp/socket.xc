@@ -72,6 +72,9 @@ static uint16_t calculate_ip_checksum(const void *unsafe header, size_t len) {
 #define LL_IP4_MULTICAST_ADDR_1 0x00
 #define LL_IP4_MULTICAST_ADDR_2 0x5e
 
+// 802.1Q VLAN constants
+#define ETH_TYPE_VLAN 0x8100
+
 void ipv4_to_multicast_mac(xtcp_ipaddr_t ipv4_addr, uint8_t dest_mac[MACADDR_NUM_BYTES]) {
     dest_mac[0] = LL_IP4_MULTICAST_ADDR_0;
     dest_mac[1] = LL_IP4_MULTICAST_ADDR_1;
@@ -90,7 +93,15 @@ validate_ethernet_header(aes67_rtp_packet_t &packet, const aes67_socket_t &sock)
     if (memcmp(packet.header.ip.eth.dest_addr, expected_dest_mac, MACADDR_NUM_BYTES) != 0)
         return AES67_STATUS_INVALID_ETH_DEST_MAC;
 
+#if AES67_VLAN_ID != 0
+    // For VLAN tagged packets, check VLAN tag
+    uint16_t tpid = (packet.header.ip.eth.qtag.data[0] << 8) | packet.header.ip.eth.qtag.data[1];
+    if (tpid != ETH_TYPE_VLAN)
+        return AES67_STATUS_INVALID_ETH_TYPE;
+#endif
+
     ethertype_host = (packet.header.ip.eth.ethertype.data[0] << 8) | packet.header.ip.eth.ethertype.data[1];
+
     if (ethertype_host != ETH_TYPE_IP)
         return AES67_STATUS_INVALID_ETH_TYPE;
 
@@ -212,6 +223,14 @@ aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
     // Format Ethernet header
     ipv4_to_multicast_mac(sock.dest_addr, packet.header.ip.eth.dest_addr);
     memcpy(packet.header.ip.eth.src_addr, src_mac_addr, MACADDR_NUM_BYTES);
+
+#if AES67_VLAN_ID != 0
+    // Set up VLAN tag
+    packet.header.ip.eth.qtag.data[0] = (ETH_TYPE_VLAN >> 8);
+    packet.header.ip.eth.qtag.data[1] = (ETH_TYPE_VLAN & 0xff);
+    packet.header.ip.eth.qtag.data[2] = (AES67_VLAN_ID >> 8);
+    packet.header.ip.eth.qtag.data[3] = (AES67_VLAN_ID & 0xff);
+#endif
     packet.header.ip.eth.ethertype.data[0] = (ETH_TYPE_IP >> 8);
     packet.header.ip.eth.ethertype.data[1] = (ETH_TYPE_IP & 0xff);
 
