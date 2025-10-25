@@ -94,6 +94,12 @@ typedef struct _aes67_sdp {
     uint64_t clock_offset; // a=mediaclk
 } aes67_sdp_t;
 
+typedef struct _aes67_sdp_fast_connect {
+    uint32_t magic; // 0xAE5675DB
+    uint32_t valid; // bitmask of valid receivers
+    aes67_sdp_t[NUM_AES67_RECEIVERS];
+} aes67_sdp_fast_connect_t;
+
 aes67_status_t aes67_sdp_parse_string(const char str[],
                                       REFERENCE_PARAM(aes67_sdp_t, sdp));
 aes67_status_t aes67_sdp_to_string(REFERENCE_PARAM(const aes67_sdp_t, sdp),
