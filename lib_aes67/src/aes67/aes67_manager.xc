@@ -189,7 +189,6 @@ static void sdp_erase_fast_connect_info(void) {
 }
 
 static void sdp_start_fast_connect(void) {
-#define DEFAULT_PAGE_SIZE (256)
     union {
         aes67_sdp_fast_connect_t fc;
         uint8_t buffer[sizeof(aes67_sdp_fast_connect_t) / DEFAULT_PAGE_SIZE + DEFAULT_PAGE_SIZE];

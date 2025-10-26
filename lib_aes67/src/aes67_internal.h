@@ -78,6 +78,8 @@
 #define FALSE (0)
 #endif
 
+#define DEFAULT_PAGE_SIZE (256)
+
 #define BIT(_x) (1 << (_x))
 
 static inline int popcount(uint32_t x) {
