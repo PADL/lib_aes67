@@ -291,7 +291,7 @@ aes67_status_t aes67_sdp_parse_string(const char *str, aes67_sdp_t *sdp) {
 void aes67_sdp_set_defaults(aes67_sdp_t *sdp) {
     memset(sdp, 0, sizeof(aes67_sdp_t));
 
-    aes67_sdp_set_port(sdp, AES67_DEFAULT_PORT_STR);
+    aes67_sdp_set_port(sdp, AES67_RTP_PORT_STR);
 
     sdp->session_name[0] = '\0';
     sdp->payload_type = -1;

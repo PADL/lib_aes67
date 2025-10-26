@@ -461,7 +461,7 @@ start_streaming(chanend media_control,
 
     aes67_sdp_set_defaults(sdp);
     aes67_sdp_set_ipv4_address(sdp, ip_addr);
-    aes67_sdp_set_port(sdp, AES67_DEFAULT_PORT_STR);
+    aes67_sdp_set_port(sdp, AES67_RTP_PORT_STR);
 
     uint32_t session_id;
     sap_timer :> session_id;

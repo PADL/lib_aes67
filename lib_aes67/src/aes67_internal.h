@@ -27,7 +27,7 @@
 #include "aes67.h"
 #include "aes67_endian.h"
 
-#define AES67_DEFAULT_PORT 5004
+#define AES67_RTP_PORT 5004
 
 #ifdef __XC__
 #define unsafe unsafe
@@ -93,7 +93,7 @@ static inline int popcount(uint32_t x) {
 
 #define STRINGIFY_HELPER(x) #x
 #define STRINGIFY(x) STRINGIFY_HELPER(x)
-#define AES67_DEFAULT_PORT_STR STRINGIFY(AES67_DEFAULT_PORT)
+#define AES67_RTP_PORT_STR STRINGIFY(AES67_RTP_PORT)
 #define AES67_DEFAULT_SAMPLE_RATE 48000
 #define AES67_DEFAULT_ENCODING AES67_ENCODING_L24
 
