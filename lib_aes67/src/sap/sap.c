@@ -101,6 +101,7 @@ aes67_sap_parse(const uint8_t *data, size_t data_len, aes67_sap_t *sap) {
     return AES67_STATUS_OK;
 }
 
+// TODO: use built-in XMOS instruction for CRC
 static uint16_t _crc16(const uint8_t *data, size_t data_len) {
     uint8_t x;
     uint16_t crc = 0xFFFF;
