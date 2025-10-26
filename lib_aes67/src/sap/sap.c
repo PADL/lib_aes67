@@ -8,13 +8,10 @@
 #include <string.h>
 
 #if AES67_XMOS
-
 #include <stdint.h>
 #else
-
 #include <arpa/inet.h>
 #include <netinet/ip.h>
-
 #endif // AES67_XMOS
 
 aes67_status_t
@@ -28,7 +25,7 @@ aes67_sap_parse(const uint8_t *data, size_t data_len, aes67_sap_t *sap) {
         return AES67_STATUS_INVALID_SAP_PACKET;
     }
 
-    if (((data[0] & 0x20) >> 5) != 1) {
+    if (((data[0] & 0x20) >> 5) != AES67_SAP_VERSION_1) {
         aes67_debug("Error: received SAP Version is not 1");
         return AES67_STATUS_INVALID_SAP_PACKET;
     }
@@ -36,7 +33,8 @@ aes67_sap_parse(const uint8_t *data, size_t data_len, aes67_sap_t *sap) {
 #if AES67_XMOS
     if (((data[0] & 0x10) >> 4) == 0) {
         ip4_addr_t addr;
-        memcpy(&addr.addr, data, 4); // TODO: check byte order
+
+        memcpy(&addr.addr, data, 4);
         if (!ip4addr_ntoa_r(&addr, sap->message_source,
                             sizeof(sap->message_source))) {
             return AES67_STATUS_INVALID_SAP_PACKET;
@@ -56,7 +54,7 @@ aes67_sap_parse(const uint8_t *data, size_t data_len, aes67_sap_t *sap) {
                   sizeof(sap->message_source));
         offset += 16;
     }
-#endif
+#endif // AES67_XMOS
 
     // Store the message type (announce or delete)
     sap->message_type = ((data[0] & 0x04) >> 2);
@@ -131,7 +129,7 @@ int aes67_sap_generate(const aes67_socket_t *sock,
         return -1;
     }
 
-    buffer[pos++] = (0x1 << 5); // SAP Version 1
+    buffer[pos++] = (AES67_SAP_VERSION_1 << 5); // SAP Version 1
     if (message_type == AES67_SAP_MESSAGE_DELETE) {
         // SAP Flag: T=1
         buffer[0] |= (0x1 << 2);
@@ -157,15 +155,17 @@ int aes67_sap_generate(const aes67_socket_t *sock,
     } else {
         return -1;
     }
-#endif
+#endif // AES67_XMOS
 
-    // Add the MIME type
-    strcpy((char *)&buffer[pos], AES67_SDP_MIME_TYPE);
-    pos += sizeof(AES67_SDP_MIME_TYPE);
+    // Add the MIME type (this is NUL terminated, so add one to AES67_SDP_MIME_TYPE_LEN)
+    memcpy(&buffer[pos], AES67_SDP_MIME_TYPE, AES67_SDP_MIME_TYPE_LEN + 1);
+    pos += AES67_SDP_MIME_TYPE_LEN + 1;
 
     // Finally the SDP payload
-    strcpy((char *)&buffer[pos], sdp);
+    memcpy(&buffer[pos], sdp, sdp_len);
     pos += sdp_len;
+
+    buffer[pos] = '\0';
 
     return pos;
 }

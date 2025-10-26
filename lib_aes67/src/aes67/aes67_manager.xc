@@ -11,7 +11,6 @@
 #include <stdlib.h>
 
 #define SAP_PERIODIC_TIME (XS1_TIMER_HZ * 10)
-#define SAP_PORT 9875
 
 static const xtcp_ipaddr_t any_addr;
 static const xtcp_ipaddr_t sap_mcast_group = {239, 255, 255, 255};
@@ -560,11 +559,11 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
     i_xtcp.join_multicast_group(sap_mcast_group);
 
     sap_rx_socket = i_xtcp.socket(XTCP_PROTOCOL_UDP);
-    err = i_xtcp.listen(sap_rx_socket, SAP_PORT, any_addr);
+    err = i_xtcp.listen(sap_rx_socket, AES67_SAP_PORT, any_addr);
     assert(err == XTCP_SUCCESS);
 
     sap_tx_socket = i_xtcp.socket(XTCP_PROTOCOL_UDP);
-    err = i_xtcp.connect(sap_tx_socket, SAP_PORT, sap_mcast_group);
+    err = i_xtcp.connect(sap_tx_socket, AES67_SAP_PORT, sap_mcast_group);
     assert(err == XTCP_SUCCESS);
 
     while (1) {
