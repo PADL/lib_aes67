@@ -81,7 +81,7 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
                                         int32_t id,
                                         aes67_receiver_t *receiver,
                                         const aes67_rtp_packet_t *packet) {
-    aes67_stream_info_t *stream_info = &receiver_streams[id];
+    aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
     int need_open = 0;
     uint32_t state = stream_info->state; // atomic read
 
@@ -150,7 +150,7 @@ static void pull_samples(int32_t id,
                          size_t *output_index_p,
                          size_t len,
                          uint32_t local_timestamp) {
-    aes67_stream_info_t *stream_info = &receiver_streams[id];
+    aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
     size_t used_channels = stream_info->channel_count;
     size_t output_index = *output_index_p;
     int valid;
