@@ -25,7 +25,12 @@ static void sdp_store_fast_connect_info(void);
 /*
  * Receiver state: the receiver name contains the subscribed receiver name
  * (from the API), one per slot; the SDP contains the discovered SDP for
- * the receiver (if any).
+ * the receiver (if any). Note: we don't currently cache all advertisements
+ * pending a subscription, as that would require some care given limited
+ * memory (e.g. a LRU cache). The disadvantage of this approach is the
+ * subscription API must be called prior to receiving the SAP adverisement
+ * (in practice this means there will be a delay). This is mitigated
+ * somewhat by the fast connect support.
  */
 static aes67_session_name_t session_subscriptions[NUM_AES67_RECEIVERS];
 static aes67_sdp_t sdp_subscriptions[NUM_AES67_RECEIVERS];
