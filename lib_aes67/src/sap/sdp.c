@@ -171,6 +171,10 @@ static void sdp_attribute_parse(aes67_sdp_t *sdp, char *line, int line_num) {
             aes67_warn("SDP Media Clock is not set to direct: %s",
                        mediaclk_type);
         }
+    } else if (strcmp(attr, "sync-time") == 0) {
+        sdp->sync_time = atoi(line);
+    } else if (strcmp(attr, "framecount") == 0) {
+        sdp->framecount = atoi(line);
     }
 }
 
