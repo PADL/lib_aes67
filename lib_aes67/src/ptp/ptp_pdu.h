@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "nettypes.h"
+#include "aes67_internal.h"
 
 #define PTP_VERSION_NUMBER (2)
 

@@ -17,7 +17,6 @@
 #include "misc_timer.h"
 #include "print.h"
 #include "debug_print.h"
-#include "util/nettypes.h"
 
 // #define PTP_DEBUG 1
 

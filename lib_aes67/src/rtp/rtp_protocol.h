@@ -10,7 +10,6 @@
 #include <sys/types.h>
 
 #include "aes67_internal.h"
-#include "nettypes.h"
 
 #if !AES67_XMOS
 #include <sys/socket.h>

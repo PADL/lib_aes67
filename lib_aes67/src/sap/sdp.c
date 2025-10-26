@@ -4,9 +4,9 @@
 
 #include "sap.h"
 #include "rtp_protocol.h"
+#include "aes67_internal.h"
 #include "aes67_utils.h"
 #include "ptp_internal.h"
-#include "nettypes.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>

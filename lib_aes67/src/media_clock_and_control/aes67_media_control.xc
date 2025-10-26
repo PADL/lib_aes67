@@ -10,7 +10,6 @@
 #include "aes67_media_clock_internal.h"
 #include "aes67_rtp.h"
 #include "ptp_internal.h"
-#include "nettypes.h"
 
 // stream info is the parsed form of the SDP for use by the I/O tasks
 // it should not contain any transient information such as sequence numbers

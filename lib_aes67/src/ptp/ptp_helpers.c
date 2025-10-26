@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
 
-#include "../util/nettypes.h"
 #include <string.h>
 #include <stdlib.h>
+#include "aes67_internal.h"
 
 n64_t parse_ptp_gmid(const char *gmid_str) {
     uint64_t result = 0;

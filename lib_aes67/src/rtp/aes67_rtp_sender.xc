@@ -8,7 +8,6 @@
 #include "aes67_internal.h"
 #include "aes67_rtp.h"
 #include "aes67_utils.h"
-#include "nettypes.h"
 #include "ptp_internal.h"
 
 aes67_sender_t senders[NUM_AES67_SENDERS];

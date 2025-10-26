@@ -5,8 +5,8 @@
 #include <ethernet.h>
 #include <xtcp.h>
 
+#include "aes67_internal.h"
 #include "ptp_config.h"
-#include "nettypes.h"
 
 #define PTP_ADJUST_PREC 30
 
