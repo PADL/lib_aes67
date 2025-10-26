@@ -476,7 +476,7 @@ start_streaming(chanend media_control,
     media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_START_STREAMING;
     media_control <: stream_info;
 
-    memcpy(&sdp_subscriptions[id], &sdp, sizeof(sdp));
+    memcpy(&sdp_advertisements[id], &sdp, sizeof(sdp));
 
     return AES67_STATUS_OK;
 }
