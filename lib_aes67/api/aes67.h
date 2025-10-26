@@ -123,11 +123,19 @@ typedef struct _aes67_event_info {
  * receiver tasks MUST run on the same tile for the stack to work.
  */
 
+typedef enum _aes67_sap_message_type {
+    AES67_SAP_MESSAGE_ANNOUNCE = 0,
+    AES67_SAP_MESSAGE_DELETE = 1
+} aes67_sap_message_type_t;
+
 #ifdef __XC__
 interface aes67_interface {
     // receiver
     aes67_status_t subscribe(int16_t id, const char session_name[]);
     aes67_status_t unsubscribe(int16_t id, const char session_name[]);
+
+    // inject a SAP message, subscribing to/unsubscribe from stream
+    aes67_status_t handle_sap_message(aes67_sap_message_type_t message_type, int16_t id, const char sdp_string[]);
 
     // sender
     aes67_status_t advertise(int16_t id,

@@ -25,20 +25,21 @@
 #define AES67_SAP_ADDRESS_GLOBAL "224.2.127.254"
 #define AES67_SAP_PORT "9875"
 
+#define AES67_SDP_MIME_TYPE "application/sdp"
+#define AES67_SDP_MAX_LEN (2048)
+
 #define AES67_SAP_MAX_HEADER (36)
 #define AES67_SAP_MAX_LEN (AES67_SAP_MAX_HEADER + AES67_SDP_MAX_LEN)
 
-enum { AES67_SAP_MESSAGE_ANNOUNCE = 0, AES67_SAP_MESSAGE_DELETE = 1 };
-
 typedef struct _aes67_sap {
-    uint8_t message_type;
+    aes67_sap_message_type_t message_type;
     uint16_t message_id_hash;
 #if AES67_XMOS
     char message_source[sizeof("255.255.255.255")];
 #else
     char message_source[INET6_ADDRSTRLEN];
 #endif
-    char sdp[2048];
+    char sdp[AES67_SDP_MAX_LEN];
 } aes67_sap_t;
 
 aes67_status_t aes67_sap_parse(ARRAY_OF_SIZE(const uint8_t, data, data_len),
@@ -65,9 +66,6 @@ int aes67_sap_send_sdp_string(const aes67_socket_t *sock,
 #endif
 
 // ------- SDP handling ---------
-
-#define AES67_SDP_MIME_TYPE "application/sdp"
-#define AES67_SDP_MAX_LEN (2048)
 
 typedef struct _aes67_sdp {
     char address[NI_MAXHOST]; // c=

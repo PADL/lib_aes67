@@ -18,6 +18,10 @@ static const xtcp_ipaddr_t sap_mcast_group = {239, 255, 255, 255};
 static const n64_t zero_n64;
 static uint32_t sample_rate = AES67_DEFAULT_SAMPLE_RATE;
 
+#if AES67_FAST_CONNECT_ENABLED
+static void sdp_store_fast_connect_info(void);
+#endif
+
 /*
  * Receiver state: the receiver name contains the subscribed receiver name
  * (from the API), one per slot; the SDP contains the discovered SDP for
@@ -127,12 +131,31 @@ static int sdp_is_advertising(int32_t id) {
     return sdp_has_valid_session_name(sdp_advertisements[id]);
 }
 
-static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp) {
+#define SDP_SUBSCRIBE_FLAG_NEW 0x1
+#define SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT 0x2
+
+static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
+    assert(is_valid_receiver_id(id));
+
     memcpy(&sdp_subscriptions[id], &sdp, sizeof(sdp));
+    if (flags & SDP_SUBSCRIBE_FLAG_NEW)
+        memcpy(session_subscriptions[id], sdp.session_name, sizeof(sdp.session_name));
+#if AES67_FAST_CONNECT_ENABLED
+    if (flags & SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT)
+        sdp_store_fast_connect_info();
+#endif
 }
 
-static void sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp) {
+static void sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
+    assert(is_valid_receiver_id(id));
+
     memset(&sdp_subscriptions[id], 0, sizeof(sdp_subscriptions));
+    if (flags & SDP_SUBSCRIBE_FLAG_NEW)
+        session_subscriptions[id][0] = '\0';
+#if AES67_FAST_CONNECT_ENABLED
+    if (flags & SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT)
+        sdp_store_fast_connect_info();
+#endif
 }
 
 static int sdp_equal(const aes67_sdp_t &sdp1, const aes67_sdp_t &sdp2) {
@@ -188,11 +211,7 @@ static void sdp_start_fast_connect(void) {
         if ((u.fc.valid & BIT(id)) == 0)
             continue;
 
-        memcpy(&sdp_subscriptions[id], &u.fc.sdp[sdp_index], sizeof(aes67_sdp_t));
-        memcpy(session_subscriptions[id], u.fc.sdp[sdp_index].session_name,
-               sizeof(u.fc.sdp[sdp_index].session_name));
-
-        sdp_index++;
+        sdp_subscribe(id, u.fc.sdp[sdp_index++], SDP_SUBSCRIBE_FLAG_NEW);
     }
 }
 
@@ -226,87 +245,94 @@ static void sdp_store_fast_connect_info(void) {
 }
 #endif // AES67_FAST_CONNECT_ENABLED
 
-static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
-                                         chanend media_control,
-                                         uint8_t buf[len],
-                                         size_t len) {
+static aes67_status_t
+_sap_handle_message(client xtcp_if i_xtcp,
+                    chanend media_control,
+                    int32_t id,
+                    aes67_sap_message_type_t message_type,
+                    const aes67_sdp_t &sdp,
+                    uint32_t flags) {
+    aes67_stream_info_t stream_info;
+    aes67_status_t status;
+
+    if (!is_valid_receiver_id(id))
+        return AES67_STATUS_INVALID_STREAM_ID;
+
+    flags |= SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT;
+
+    status = sdp_to_stream_info(stream_info, id, sdp);
+    if (status == AES67_STATUS_UNKNOWN_RTP_ENCODING) {
+        const char *unsafe encoding = aes67_encoding_name(sdp.encoding);
+
+        debug_printf("unknown RTP encoding %d/%s\n", sdp.encoding,
+                     encoding != NULL ? encoding
+                                      : (const char *)"<nil>");
+    } else if (status != AES67_STATUS_OK) {
+        debug_printf("failed to marshal stream info: %s\n",
+                     aes67_status_to_string(status));
+    }
+    if (status != AES67_STATUS_OK)
+        return status;
+
+    if (message_type == AES67_SAP_MESSAGE_DELETE) {
+        debug_printf("unsubscribing from stream %s\n", sdp.session_name);
+        sdp_unsubscribe(id, sdp, flags);
+        media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
+        media_control <: id;
+    } else if (!sdp_is_subscribed(id)) {
+        debug_printf("subscribing to stream %s channel count %d sample "
+                     "size %d sample rate %d encoding %s\n",
+                     sdp.session_name, sdp.channel_count, sdp.sample_size,
+                     sdp.sample_rate, aes67_encoding_name(sdp.encoding));
+        sdp_subscribe(id, sdp, flags);
+        media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
+        media_control <: stream_info;
+    } else if (sdp_equal(sdp_subscriptions[id], sdp) == 0) {
+        debug_printf("resubscribing to changed stream %s\n",
+                     sdp.session_name);
+        sdp_subscribe(id, sdp, flags);
+        media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE;
+        media_control <: stream_info;
+    }
+
+    return AES67_STATUS_OK;
+}
+
+static aes67_status_t
+sap_handle_message(client xtcp_if i_xtcp,
+                   chanend media_control,
+                   uint8_t buf[len],
+                   size_t len) {
     aes67_status_t status;
     aes67_sap_t sap;
     aes67_sdp_t sdp;
     int32_t id;
 
-    unsafe {
-        status = aes67_sap_parse(buf, len, sap);
-        if (status != AES67_STATUS_OK) {
-            debug_printf("failed to parse SAP %.*s\n", len, buf);
-            return status;
-        }
-
-        status = aes67_sdp_parse_string(sap.sdp, sdp);
-        if (status != AES67_STATUS_OK) {
-            debug_printf("failed to parse SDP %s\n", sap.sdp);
-            return status;
-        }
-
-#pragma unsafe arrays
-        for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
-            if (strcmp(sdp.session_name, session_subscriptions[id]) == 0)
-                break;
-        }
-
-        if (id == NUM_AES67_RECEIVERS) {
-            debug_printf("ignoring session %s, not subscribed\n",
-                         sdp.session_name);
-            return AES67_STATUS_OK;
-        }
-
-        aes67_media_control_command_t command;
-        aes67_stream_info_t stream_info;
-        aes67_status_t status;
-
-        status = sdp_to_stream_info(stream_info, id, sdp);
-        if (status == AES67_STATUS_UNKNOWN_RTP_ENCODING) {
-            const char *unsafe encoding = aes67_encoding_name(sdp.encoding);
-
-            debug_printf("unknown RTP encoding %d/%s\n", sdp.encoding,
-                         encoding != NULL ? encoding
-                                          : (const char *unsafe) "<nil>");
-        } else if (status != AES67_STATUS_OK) {
-            debug_printf("failed to marshal stream info: %s\n",
-                         aes67_status_to_string(status));
-        }
-        if (status != AES67_STATUS_OK)
-            return status;
-
-        if (sap.message_type == AES67_SAP_MESSAGE_DELETE) {
-            debug_printf("unsubscribing from stream %s\n", sdp.session_name);
-            sdp_unsubscribe(id, sdp);
-            media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
-            media_control <: id;
-#if AES67_FAST_CONNECT_ENABLED
-            sdp_store_fast_connect_info();
-#endif
-        } else if (!sdp_is_subscribed(id)) {
-            debug_printf("subscribing to stream %s channel count %d sample "
-                         "size %d sample rate %d encoding %s\n",
-                         sdp.session_name, sdp.channel_count, sdp.sample_size,
-                         sdp.sample_rate, aes67_encoding_name(sdp.encoding));
-            sdp_subscribe(id, sdp);
-            media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
-            media_control <: stream_info;
-#if AES67_FAST_CONNECT_ENABLED
-            sdp_store_fast_connect_info();
-#endif
-        } else if (sdp_equal(sdp_subscriptions[id], sdp) == 0) {
-            debug_printf("resubscribing to changed stream %s\n",
-                         sdp.session_name);
-            sdp_subscribe(id, sdp);
-            media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE;
-            media_control <: stream_info;
-        }
+    status = aes67_sap_parse(buf, len, sap);
+    if (status != AES67_STATUS_OK) {
+        debug_printf("failed to parse SAP %.*s\n", len, buf);
+        return status;
     }
 
-    return AES67_STATUS_OK;
+    status = aes67_sdp_parse_string(sap.sdp, sdp);
+    if (status != AES67_STATUS_OK) {
+        debug_printf("failed to parse SDP %s\n", sap.sdp);
+        return status;
+    }
+
+#pragma unsafe arrays
+    for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
+        if (strcmp(sdp.session_name, session_subscriptions[id]) == 0)
+            break;
+    }
+
+    if (id == NUM_AES67_RECEIVERS) {
+        debug_printf("ignoring session %s, not subscribed\n",
+                     sdp.session_name);
+        return AES67_STATUS_OK;
+    }
+
+    return _sap_handle_message(i_xtcp, media_control, id, sap.message_type, sdp, 0);
 }
 
 static void sap_handle_event(client xtcp_if i_xtcp,
@@ -572,6 +598,31 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
 
             memset(session_subscriptions[id], 0, sizeof(session_subscriptions[id]));
             status = AES67_STATUS_OK;
+            break;
+        case i_aes67[size_t i].handle_sap_message(aes67_sap_message_type_t message_type, int16_t id, const char sdp_string[])->aes67_status_t status:
+            char sdp_string_copy[AES67_SDP_MAX_LEN];
+            aes67_sdp_t sdp;
+            size_t sdp_string_len;
+
+            if (!is_valid_receiver_id(id)) {
+                status = AES67_STATUS_INVALID_STREAM_ID;
+                break;
+            }
+
+#pragma unsafe arrays
+            for (sdp_string_len = 0; sdp_string[sdp_string_len]; sdp_string_len++)
+                ;
+            if (sdp_string_len >= AES67_SDP_MAX_LEN) {
+                status = AES67_STATUS_OUT_OF_BUFFER_SPACE;
+                break;
+            }
+            memcpy(sdp_string_copy, sdp_string, sdp_string_len + 1);
+
+            status = aes67_sdp_parse_string(sdp_string_copy, sdp);
+            if (status != AES67_STATUS_OK)
+                break;
+
+            status = _sap_handle_message(i_xtcp, media_control, id, message_type, sdp, SDP_SUBSCRIBE_FLAG_NEW);
             break;
         case i_aes67[size_t i].advertise(int16_t id, const char session_name[], uint8_t ip_addr[4], uint32_t sample_size, uint32_t channel_count)->aes67_status_t status:
             aes67_session_name_t _session_name;
