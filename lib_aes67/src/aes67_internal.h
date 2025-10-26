@@ -25,7 +25,7 @@
 #include <stdint.h>
 
 #include "aes67.h"
-#include "nettypes.h"
+#include "aes67_endian.h"
 
 #define AES67_DEFAULT_PORT 5004
 

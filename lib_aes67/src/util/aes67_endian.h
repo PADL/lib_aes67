@@ -126,7 +126,7 @@ typedef struct tagged_ethernet_hdr_t {
 } tagged_ethernet_hdr_t;
 
 /* Standard network byte order conversion functions */
-#if defined(__XC__) || defined(BUILDING_NETTYPES)
+#if defined(__XC__) || defined(BUILDING_AES67_ENDIAN_C)
 uint16_t htons(uint16_t hostshort);
 uint16_t ntohs(uint16_t netshort);
 uint32_t htonl(uint32_t hostlong);

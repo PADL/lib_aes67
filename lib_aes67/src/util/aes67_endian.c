@@ -1,7 +1,8 @@
 // Copyright (c) 2014-2017, XMOS Ltd, All rights reserved
 
-#define BUILDING_NETTYPES 1
-#include "nettypes.h"
+#define BUILDING_AES67_ENDIAN_C 1
+
+#include "aes67_endian.h"
 
 extern inline n16_t hton16(u16_t x);
 extern inline u16_t ntoh16(n16_t x);
