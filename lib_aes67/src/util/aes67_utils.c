@@ -5,26 +5,21 @@
 #include "aes67_internal.h"
 #include "aes67_utils.h"
 
-#if __has_include(<xs1.h>)
-
+#if AES67_XMOS
 #include <xs1.h>
-
 #else
-
 #include <signal.h>
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
 #include <time.h>
-
-#endif
+#endif // AES67_XMOS
 
 #include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
-#if !__has_include(<debug_print.h>)
-
+#if !AES67_XMOS
 void aes67_log(aes67_log_level level, const char *fmt, ...) {
     time_t t = time(NULL);
     char *time_str;
@@ -78,8 +73,7 @@ void aes67_log(aes67_log_level level, const char *fmt, ...) {
         }
     }
 }
-
-#endif
+#endif // !AES67_XMOS
 
 const char *aes67_encoding_names[AES67_ENCODING_MAX] = {
     [AES67_ENCODING_L8] = "L8",      [AES67_ENCODING_L16] = "L16",
