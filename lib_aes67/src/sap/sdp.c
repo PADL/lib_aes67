@@ -472,7 +472,8 @@ aes67_status_t aes67_sdp_get_ipv4_address(const aes67_sdp_t *sdp, uint8_t ip_add
     if (ip4addr_aton(sdp->address, &addr) != 1)
         return AES67_STATUS_INVALID_IP_DEST_ADDR;
 
-    uint32_to_xtcp_ipaddr(ip_addr, addr.addr);
+    host_uint32_to_xtcp_ipaddr(ip_addr, addr.addr);
+
     return AES67_STATUS_OK;
 }
 
@@ -482,7 +483,8 @@ aes67_status_t aes67_sdp_get_ipv4_session_origin(const aes67_sdp_t *sdp, uint8_t
     if (ip4addr_aton(sdp->session_origin, &addr) != 1)
         return AES67_STATUS_INVALID_IP_SRC_ADDR;
 
-    uint32_to_xtcp_ipaddr(ip_addr, addr.addr);
+    host_uint32_to_xtcp_ipaddr(ip_addr, addr.addr);
+
     return AES67_STATUS_OK;
 }
 
