@@ -4,9 +4,10 @@
 #include <string.h>
 #include <xassert.h>
 
-#include "aes67_xfifo.h"
+#include "aes67_internal.h"
 #include "aes67_media_clock_client.h"
 #include "aes67_utils.h"
+#include "rtp_fifo.h"
 
 #define OUTPUT_DURING_LOCK 0
 #define NOTIFICATION_PERIOD 250

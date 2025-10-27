@@ -1,12 +1,13 @@
 #pragma once
 
+#include <aes67_internal.h>
+
+#include "rtp_protocol.h"
+#include "rtp_fifo.h"
+
 #ifdef __XC__
 extern "C" {
 #endif
-
-#include <aes67_internal.h>
-#include "rtp_protocol.h"
-#include "aes67_xfifo.h"
 
 typedef struct _aes67_receiver {
     aes67_socket_t socket;
