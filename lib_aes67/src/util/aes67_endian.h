@@ -8,30 +8,40 @@
 
 /* Host data types - little endian */
 typedef uint8_t u8_t;
+
 typedef uint16_t u16_t;
+
 typedef unsigned int u32_t;
+
 typedef long long u64_t;
+
 typedef struct {
     uint8_t data[10];
 } u80_t;
+
 typedef struct {
     unsigned int data[3];
 } u96_t;
 
 /* Network data types - big endian  */
 typedef uint8_t n8_t;
+
 typedef struct {
     uint8_t data[2];
 } n16_t;
+
 typedef struct {
     uint8_t data[4];
 } n32_t;
+
 typedef struct {
     uint8_t data[8];
 } n64_t;
+
 typedef struct {
     uint8_t data[10];
 } n80_t;
+
 typedef struct {
     uint8_t data[12];
 } n96_t;
