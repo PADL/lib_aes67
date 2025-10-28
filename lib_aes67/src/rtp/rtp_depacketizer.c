@@ -3,10 +3,10 @@
 
 #include <xassert.h>
 #include <debug_print.h>
-#include <aes67_internal.h>
 #include <string.h>
 
-#include "aes67_rtp.h"
+#include "aes67_internal.h"
+#include "rtp_internal.h"
 
 aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id) {
     assert(is_valid_receiver_id(id));

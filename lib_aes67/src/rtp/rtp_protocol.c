@@ -6,7 +6,7 @@
 #include <xassert.h>
 
 #include "rtp_protocol.h"
-#include "sap/sap.h"
+#include "sap.h"
 
 aes67_status_t aes67_rtp_parse(aes67_rtp_packet_t *packet) {
     uint32_t rtp_length = aes67_rtp_packet_length_rtp(packet);

@@ -6,9 +6,9 @@
 #include <string.h>
 
 #include "aes67_internal.h"
-#include "aes67_rtp.h"
 #include "aes67_utils.h"
 #include "ptp_internal.h"
+#include "rtp_internal.h"
 
 // Convert local XMOS timestamp to RTP media clock
 // Local XMOS timestamp -> PTP timestamp -> RTP media clock (based on sample

@@ -11,7 +11,7 @@
 #include "aes67_utils.h"
 #include "ptp.h"
 #include "ptp_internal.h"
-#include "aes67_rtp.h"
+#include "rtp_internal.h"
 
 #ifndef DEBUG_MEDIA_CLOCK
 #define DEBUG_MEDIA_CLOCK 2

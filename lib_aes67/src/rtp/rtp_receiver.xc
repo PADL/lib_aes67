@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #include "aes67_internal.h"
-#include "aes67_rtp.h"
+#include "rtp_internal.h"
 #include "ptp_internal.h"
 
 aes67_receiver_t receivers[NUM_AES67_RECEIVERS];
