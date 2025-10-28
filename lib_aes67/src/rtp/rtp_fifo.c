@@ -5,7 +5,7 @@
 #include <xassert.h>
 
 #include "aes67_internal.h"
-#include "aes67_media_clock_client.h"
+#include "media_clock_client.h"
 #include "aes67_utils.h"
 #include "rtp_fifo.h"
 

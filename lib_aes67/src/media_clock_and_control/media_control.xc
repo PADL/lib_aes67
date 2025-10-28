@@ -7,7 +7,7 @@
 #include <ethernet.h>
 
 #include "aes67_internal.h"
-#include "aes67_media_clock_internal.h"
+#include "media_clock_internal.h"
 #include "rtp_internal.h"
 #include "ptp_internal.h"
 

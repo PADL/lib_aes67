@@ -1,8 +1,8 @@
 // Copyright (c) 2011-2017, XMOS Ltd, All rights reserved
 #include <xs1.h>
 #include <print.h>
-#include "aes67_media_clock_client.h"
-#include "aes67_media_clock_internal.h"
+#include "media_clock_client.h"
+#include "media_clock_internal.h"
 
 void aes67_notify_buf_ctl_stream_info(chanend buf_ctl, uintptr_t fifo) {
     outuchar(buf_ctl, BUF_CTL_NOTIFY_STREAM_INFO);

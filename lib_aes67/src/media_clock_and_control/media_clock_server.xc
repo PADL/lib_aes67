@@ -6,8 +6,8 @@
 #include <xscope.h>
 #include <assert.h>
 
-#include "aes67_media_clock_client.h"
-#include "aes67_media_clock_internal.h"
+#include "media_clock_client.h"
+#include "media_clock_internal.h"
 #include "aes67_utils.h"
 #include "ptp.h"
 #include "ptp_internal.h"

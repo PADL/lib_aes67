@@ -30,8 +30,8 @@
 #include "ptp.h"
 #include "ptp_internal.h"
 #include "debug_print.h"
-#include "aes67_media_clock_internal.h"
-#include "aes67_media_clock_client.h"
+#include "media_clock_internal.h"
+#include "media_clock_client.h"
 #include "misc_timer.h"
 
 // The clock recovery internal representation of the worldlen.  More precision
