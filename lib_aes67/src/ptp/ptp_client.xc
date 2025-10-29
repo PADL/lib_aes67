@@ -93,7 +93,7 @@ ptp_port_role_t ptp_get_state(chanend ptp_server) {
     return state;
 }
 
-void ptp_get_propagation_delay(chanend ptp_server, unsigned *pdelay) {
+void ptp_get_propagation_delay(chanend ptp_server, uint32_t *pdelay) {
     send_cmd(ptp_server, PTP_GET_PDELAY);
     slave {
         ptp_server :> *pdelay;

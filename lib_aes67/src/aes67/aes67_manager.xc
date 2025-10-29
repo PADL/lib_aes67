@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
 
-#include "aes67_internal.h"
-#include "ptp_internal.h"
-#include "aes67_utils.h"
-#include "sap.h"
-
 #include <xassert.h>
 #include <string.h>
 #include <stdlib.h>
 
-#define SAP_PERIODIC_TIME (XS1_TIMER_HZ * 10)
+#include "aes67_internal.h"
+#include "ptp_internal.h"
+#include "aes67_utils.h"
+#include "sap.h"
 
 static const xtcp_ipaddr_t any_addr;
 static const xtcp_ipaddr_t sap_mcast_group = {239, 255, 255, 255};
@@ -142,6 +140,7 @@ static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
     assert(is_valid_receiver_id(id));
 
     memcpy(&sdp_subscriptions[id], &sdp, sizeof(sdp));
+
     if (flags & SDP_SUBSCRIBE_FLAG_NEW)
         memcpy(session_subscriptions[id], sdp.session_name, sizeof(sdp.session_name));
 #if AES67_FAST_CONNECT_ENABLED
@@ -154,6 +153,7 @@ static void sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) 
     assert(is_valid_receiver_id(id));
 
     memset(&sdp_subscriptions[id], 0, sizeof(sdp_subscriptions));
+
     if (flags & SDP_SUBSCRIBE_FLAG_NEW)
         session_subscriptions[id][0] = '\0';
 #if AES67_FAST_CONNECT_ENABLED
@@ -686,7 +686,7 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             break;
         case sap_timer when timerafter(sap_timeout) :> void:
             aes67_periodic(i_xtcp, media_control, sap_tx_socket, sap_timeout);
-            sap_timeout += SAP_PERIODIC_TIME;
+            sap_timeout += AES67_SAP_PERIODIC_TIME;
             break;
         }
     }

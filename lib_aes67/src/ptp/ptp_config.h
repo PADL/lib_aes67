@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "../aes67_internal.h"
+#include "aes67_internal.h"
 
 #define PTP_NUM_PORTS (NUM_ETHERNET_MASTER_PORTS)
 

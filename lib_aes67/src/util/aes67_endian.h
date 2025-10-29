@@ -182,6 +182,7 @@ static inline uint32_t ntohl(uint32_t netlong) {
 
 /* IP headers, from lwIP */
 typedef struct ip4_addr {
+    // NB: needs to remain unsigned long to link with lwIP
     unsigned long addr;
 } ip4_addr_t;
 

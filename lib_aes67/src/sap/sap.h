@@ -34,6 +34,8 @@
 #define AES67_SAP_MAX_HEADER (36)
 #define AES67_SAP_MAX_LEN (AES67_SAP_MAX_HEADER + AES67_SDP_MAX_LEN)
 
+#define AES67_SAP_PERIODIC_TIME (XS1_TIMER_HZ * 10)
+
 typedef struct _aes67_sap {
     aes67_sap_message_type_t message_type;
     uint16_t message_id_hash;

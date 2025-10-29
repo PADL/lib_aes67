@@ -12,7 +12,7 @@
 #define PTP_PERIODIC_TIME (10000) // 0.1 milliseconds
 
 #pragma select handler
-void receive_ptp_cmd(chanend c, unsigned int &cmd) { cmd = inuchar(c); }
+void receive_ptp_cmd(chanend c, uint32_t &cmd) { cmd = inuchar(c); }
 
 void ptp_server_init(client interface ethernet_cfg_if i_eth_cfg,
                        client interface ethernet_rx_if ?i_eth_rx,
@@ -84,7 +84,7 @@ void ptp_l3_handle_event(client interface xtcp_if i_xtcp,
 
 static void ptp_give_requested_time_info(chanend c, timer ptp_timer) {
     int thiscore_now;
-    unsigned tile_id = get_local_tile_id();
+    uint32_t tile_id = get_local_tile_id();
     master {
       ptp_timer :> thiscore_now;
       c <: thiscore_now;
@@ -97,7 +97,8 @@ static void ptp_give_requested_time_info(chanend c, timer ptp_timer) {
 }
 
 void ptp_get_local_time_info_mod64(ptp_time_info_mod64 &info) {
-    unsigned int hi, lo;
+    uint32_t hi, lo;
+
     ptp_get_reference_ptp_ts_mod_64(hi, lo);
     info.local_ts = ptp_reference_local_ts;
     info.ptp_ts_hi = hi;
@@ -109,8 +110,8 @@ void ptp_get_local_time_info_mod64(ptp_time_info_mod64 &info) {
 #pragma select handler
 void ptp_process_client_request(chanend c, timer ptp_timer) {
     uint8_t cmd;
-    unsigned thiscore_now;
-    unsigned tile_id = get_local_tile_id();
+    uint32_t thiscore_now;
+    uint32_t tile_id = get_local_tile_id();
 
     cmd = inuchar(c);
     (void)inuchar(c);
@@ -121,7 +122,7 @@ void ptp_process_client_request(chanend c, timer ptp_timer) {
       ptp_give_requested_time_info(c, ptp_timer);
       break;
     case PTP_GET_TIME_INFO_MOD64: {
-      unsigned int hi, lo;
+      uint32_t hi, lo;
       ptp_get_reference_ptp_ts_mod_64(hi, lo);
       master {
         c :> int;

@@ -27,9 +27,9 @@
    For example, if we are running 1% faster than the master clock then
    this value will be 0.01 */
 #define PTP_ADJUST_WEIGHT 32
-static int g_ptp_adjust_valid = 0;
-signed g_ptp_adjust = 0;
-signed g_inv_ptp_adjust = 0;
+static int32_t g_ptp_adjust_valid = 0;
+int32_t signed g_ptp_adjust = 0;
+int32_t signed g_inv_ptp_adjust = 0;
 
 static const xtcp_ipaddr_t any_addr;
 static int32_t g_ptp_l3_event_tx = -1;
@@ -47,7 +47,7 @@ ptp_port_info_t ptp_port_info[PTP_NUM_PORTS];
 static uint16_t steps_removed_from_gm;
 
 /* These variables make up the state of the local clock/port */
-unsigned ptp_reference_local_ts;
+uint32_t ptp_reference_local_ts;
 ptp_timestamp ptp_reference_ptp_ts;
 static int ptp_last_gm_freq_change = 0;
 static int ptp_gm_timebase_ind = 0;
@@ -57,21 +57,21 @@ static u8_t ptp_priority1;
 static u8_t ptp_priority2 = PTP_DEFAULT_PRIORITY2;
 
 /* Timing variables */
-static unsigned last_received_announce_time_valid[PTP_NUM_PORTS];
-static unsigned last_received_announce_time[PTP_NUM_PORTS];
-static unsigned last_received_sync_time[PTP_NUM_PORTS];
-static unsigned last_receive_sync_upstream_interval[PTP_NUM_PORTS];
-static unsigned last_announce_time[PTP_NUM_PORTS];
-static unsigned last_sync_time[PTP_NUM_PORTS];
-static unsigned last_pdelay_req_time[PTP_NUM_PORTS];
+static uint32_t last_received_announce_time_valid[PTP_NUM_PORTS];
+static uint32_t last_received_announce_time[PTP_NUM_PORTS];
+static uint32_t last_received_sync_time[PTP_NUM_PORTS];
+static uint32_t last_receive_sync_upstream_interval[PTP_NUM_PORTS];
+static uint32_t last_announce_time[PTP_NUM_PORTS];
+static uint32_t last_sync_time[PTP_NUM_PORTS];
+static uint32_t last_pdelay_req_time[PTP_NUM_PORTS];
 
 static ptp_timestamp prev_adjust_master_ts;
-static unsigned prev_adjust_local_ts;
+static uint32_t prev_adjust_local_ts;
 static int prev_adjust_valid = 0;
 
-static unsigned received_sync = 0;
+static uint32_t received_sync = 0;
 static u16_t received_sync_id;
-static unsigned received_sync_ts;
+static uint32_t received_sync_ts;
 
 int sync_lock = 0;
 static int sync_count = 0;
@@ -79,7 +79,7 @@ static int sync_count = 0;
 static gPTPAnnounceMessage best_announce_msg;
 
 static uint64_t pdelay_epoch_timer;
-static unsigned prev_pdelay_local_ts;
+static uint32_t prev_pdelay_local_ts;
 
 static int tile_timer_offset;
 static int periodic_counter[PTP_NUM_PORTS];
@@ -99,9 +99,9 @@ ptp_port_role_t ptp_current_state() {
 #endif
 }
 
-[[dual_issue]] unsigned
-local_timestamp_to_ptp_mod32(unsigned local_ts, ptp_time_info_mod64 &info) {
-    long long local_diff = (signed)local_ts - (signed)info.local_ts;
+[[dual_issue]] uint32_t
+local_timestamp_to_ptp_mod32(uint32_t local_ts, ptp_time_info_mod64 &info) {
+    int64_t local_diff = (signed)local_ts - (signed)info.local_ts;
 
     local_diff *= 10;
     local_diff =
@@ -110,11 +110,11 @@ local_timestamp_to_ptp_mod32(unsigned local_ts, ptp_time_info_mod64 &info) {
     return (info.ptp_ts_lo + (int)local_diff);
 }
 
-void local_timestamp_to_ptp_mod64(unsigned local_ts,
+void local_timestamp_to_ptp_mod64(uint32_t local_ts,
                                   ptp_time_info_mod64 *info,
-                                  unsigned *hi,
-                                  unsigned *lo) {
-    long long local_diff = (signed)local_ts - (signed)info->local_ts;
+                                  uint32_t *hi,
+                                  uint32_t *lo) {
+    int64_t local_diff = (signed)local_ts - (signed)info->local_ts;
     uint64_t ptp_mod64 = ((uint64_t)info->ptp_ts_hi << 32) + info->ptp_ts_lo;
 
     local_diff *= 10;
@@ -124,21 +124,21 @@ void local_timestamp_to_ptp_mod64(unsigned local_ts,
     ptp_mod64 += local_diff;
 
     *hi = ptp_mod64 >> 32;
-    *lo = (unsigned)ptp_mod64;
+    *lo = (uint32_t)ptp_mod64;
 }
 
-void ptp_get_reference_ptp_ts_mod_64(unsigned &hi, unsigned &lo) {
+void ptp_get_reference_ptp_ts_mod_64(uint32_t &hi, uint32_t &lo) {
     uint64_t t;
     t = ptp_reference_ptp_ts.seconds[0] +
         ((uint64_t)ptp_reference_ptp_ts.seconds[1] << 32);
     t = t * NANOSECONDS_PER_SECOND;
     t += ptp_reference_ptp_ts.nanoseconds;
-    hi = (unsigned)(t >> 32);
-    lo = (unsigned)t;
+    hi = (uint32_t)(t >> 32);
+    lo = (uint32_t)t;
 }
 
-static long long local_time_to_ptp_time(unsigned t, int l_ptp_adjust) {
-    long long ret = ((long long)t) * 10;
+static int64_t local_time_to_ptp_time(uint32_t t, int l_ptp_adjust) {
+    int64_t ret = ((int64_t)t) * 10;
 
     ret = ret + ((ret * l_ptp_adjust) >> PTP_ADJUST_PREC);
     return ret;
@@ -146,7 +146,7 @@ static long long local_time_to_ptp_time(unsigned t, int l_ptp_adjust) {
 
 static void ptp_timestamp_offset64(ptp_timestamp &alias dst,
                                    ptp_timestamp &alias ts,
-                                   long long offset) {
+                                   int64_t offset) {
     uint64_t sec = ts.seconds[0] | ((uint64_t)ts.seconds[1] << 32);
 
     uint64_t nanosec = ts.nanoseconds;
@@ -155,8 +155,8 @@ static void ptp_timestamp_offset64(ptp_timestamp &alias dst,
     sec = sec + nanosec / NANOSECONDS_PER_SECOND;
     nanosec = nanosec % NANOSECONDS_PER_SECOND;
 
-    dst.seconds[1] = (unsigned)(sec >> 32);
-    dst.seconds[0] = (unsigned)sec;
+    dst.seconds[1] = (uint32_t)(sec >> 32);
+    dst.seconds[0] = (uint32_t)sec;
     dst.nanoseconds = nanosec;
 }
 
@@ -164,23 +164,23 @@ void ptp_timestamp_offset(ptp_timestamp &ts, int offset) {
     ptp_timestamp_offset64(ts, ts, offset);
 }
 
-static long long ptp_timestamp_diff(ptp_timestamp &a, ptp_timestamp &b) {
+static int64_t ptp_timestamp_diff(ptp_timestamp &a, ptp_timestamp &b) {
     uint64_t sec_a = a.seconds[0] | ((uint64_t)a.seconds[1] << 32);
     uint64_t sec_b = b.seconds[0] | ((uint64_t)b.seconds[1] << 32);
     uint64_t nanosec_a = a.nanoseconds;
     uint64_t nanosec_b = b.nanoseconds;
 
-    long long sec_diff = sec_a - sec_b;
-    long long nanosec_diff = nanosec_a - nanosec_b;
+    int64_t sec_diff = sec_a - sec_b;
+    int64_t nanosec_diff = nanosec_a - nanosec_b;
 
     nanosec_diff += sec_diff * NANOSECONDS_PER_SECOND;
 
     return nanosec_diff;
 }
 
-unsigned ptp_timestamp_to_local(ptp_timestamp &ts, ptp_time_info &info) {
-    long long ptp_diff;
-    long long local_diff;
+uint32_t ptp_timestamp_to_local(ptp_timestamp &ts, ptp_time_info &info) {
+    int64_t ptp_diff;
+    int64_t local_diff;
     ptp_diff = ptp_timestamp_diff(ts, info.ptp_ts);
 
     local_diff =
@@ -190,9 +190,9 @@ unsigned ptp_timestamp_to_local(ptp_timestamp &ts, ptp_time_info &info) {
     return (info.local_ts + local_diff);
 }
 
-unsigned ptp_mod32_timestamp_to_local(unsigned ts, ptp_time_info_mod64 &info) {
-    long long ptp_diff;
-    long long local_diff;
+uint32_t ptp_mod32_timestamp_to_local(uint32_t ts, ptp_time_info_mod64 &info) {
+    int64_t ptp_diff;
+    int64_t local_diff;
     ptp_diff = (signed)ts - (signed)info.ptp_ts_lo;
 
     local_diff =
@@ -203,11 +203,11 @@ unsigned ptp_mod32_timestamp_to_local(unsigned ts, ptp_time_info_mod64 &info) {
 }
 
 static void _local_timestamp_to_ptp(ptp_timestamp &ptp_ts,
-                                    unsigned local_ts,
-                                    unsigned reference_local_ts,
+                                    uint32_t local_ts,
+                                    uint32_t reference_local_ts,
                                     ptp_timestamp &reference_ptp_ts,
-                                    unsigned ptp_adjust) {
-    unsigned local_diff = (signed)local_ts - (signed)reference_local_ts;
+                                    uint32_t ptp_adjust) {
+    uint32_t local_diff = (signed)local_ts - (signed)reference_local_ts;
 
     uint64_t diff = local_time_to_ptp_time(local_diff, ptp_adjust);
 
@@ -215,7 +215,7 @@ static void _local_timestamp_to_ptp(ptp_timestamp &ptp_ts,
 }
 
 void local_timestamp_to_ptp(ptp_timestamp &ptp_ts,
-                            unsigned local_ts,
+                            uint32_t local_ts,
                             ptp_time_info &info) {
     _local_timestamp_to_ptp(ptp_ts, local_ts, info.local_ts, info.ptp_ts,
                             info.ptp_adjust);
@@ -240,11 +240,12 @@ static void update_delay(delay_mechanism_t mechanism,
                          ptp_timestamp t3,
                          ptp_timestamp t4);
 
-static void set_new_role(enum ptp_port_role_t new_role, int port_num) {
+static void set_new_role(const enum ptp_port_role_t new_role, int port_num) {
 
-    unsigned t = get_local_time();
+    uint32_t t = get_local_time();
 
-    if (new_role == PTP_SLAVE) {
+    switch (new_role) {
+    case PTP_SLAVE:
         debug_printf("PTP Port %d Role: Slave\n", port_num);
 
         ptp_port_info[port_num].delay_info.valid = 0;
@@ -255,9 +256,8 @@ static void set_new_role(enum ptp_port_role_t new_role, int port_num) {
         last_pdelay_req_time[port_num] = t;
         sync_lock = 0;
         sync_count = 0;
-    }
-
-    if (new_role == PTP_MASTER) {
+        break;
+    case PTP_MASTER:
         debug_printf("PTP Port %d Role: Master\n", port_num);
 
         // Now we are the master so no rate matching is needed, but record the
@@ -271,6 +271,9 @@ static void set_new_role(enum ptp_port_role_t new_role, int port_num) {
         ptp_reference_local_ts = ptp_reference_local_ts;
 
         last_sync_time[port_num] = last_announce_time[port_num] = t;
+        break;
+    default:
+        break;
     }
 
     ptp_port_info[port_num].role_state = new_role;
@@ -290,10 +293,9 @@ static void set_new_role(enum ptp_port_role_t new_role, int port_num) {
    with */
 #define ADJUST_CALC_PREC 35
 
-static int update_adjust(ptp_timestamp &master_ts, unsigned local_ts) {
-
+static int update_adjust(ptp_timestamp &master_ts, uint32_t local_ts) {
     if (prev_adjust_valid) {
-        signed long long adjust, inv_adjust, master_diff, local_diff;
+        int64_t adjust, inv_adjust, master_diff, local_diff;
 
         /* Calculated the difference between two sync message on
            the master port and the local port */
@@ -336,8 +338,7 @@ static int update_adjust(ptp_timestamp &master_ts, unsigned local_ts) {
         /* Re-average the adjust with a given weighting.
            This method loses a few bits of precision */
         if (g_ptp_adjust_valid) {
-
-            long long diff = adjust - (long long)g_ptp_adjust;
+            int64_t diff = adjust - (int64_t)g_ptp_adjust;
 
             if (diff < 0)
                 diff = -diff;
@@ -367,13 +368,13 @@ static int update_adjust(ptp_timestamp &master_ts, unsigned local_ts) {
             }
 
             adjust =
-                (((long long)g_ptp_adjust) * (PTP_ADJUST_WEIGHT - 1) + adjust) /
+                (((int64_t)g_ptp_adjust) * (PTP_ADJUST_WEIGHT - 1) + adjust) /
                 PTP_ADJUST_WEIGHT;
 
             g_ptp_adjust = (int)adjust;
 
             inv_adjust =
-                (((long long)g_inv_ptp_adjust) * (PTP_ADJUST_WEIGHT - 1) +
+                (((int64_t)g_inv_ptp_adjust) * (PTP_ADJUST_WEIGHT - 1) +
                  inv_adjust) /
                 PTP_ADJUST_WEIGHT;
 
@@ -393,7 +394,7 @@ static int update_adjust(ptp_timestamp &master_ts, unsigned local_ts) {
 }
 
 static void update_reference_timestamps(ptp_timestamp &master_egress_ts,
-                                        unsigned local_ingress_ts,
+                                        uint32_t local_ingress_ts,
                                         ptp_port_info_t &port_info) {
     ptp_timestamp master_ingress_ts;
 
@@ -407,12 +408,12 @@ static void update_reference_timestamps(ptp_timestamp &master_egress_ts,
 
 #define UPDATE_REFERENCE_TIMESTAMP_PERIOD (500000000) // 5 sec
 
-static void periodic_update_reference_timestamps(unsigned int local_ts) {
+static void periodic_update_reference_timestamps(uint32_t local_ts) {
 
     int local_diff = local_ts - ptp_reference_local_ts;
 
     if (local_diff > UPDATE_REFERENCE_TIMESTAMP_PERIOD) {
-        long long ptp_diff = local_time_to_ptp_time(local_diff, g_ptp_adjust);
+        int64_t ptp_diff = local_time_to_ptp_time(local_diff, g_ptp_adjust);
 
         ptp_reference_local_ts = local_ts;
         ptp_timestamp_offset64(ptp_reference_ptp_ts, ptp_reference_ptp_ts,
@@ -427,8 +428,8 @@ static void update_delay(delay_mechanism_t mechanism,
                          ptp_timestamp t2,
                          ptp_timestamp t3,
                          ptp_timestamp t4) {
-    long long delay;
-    long long round_trip;
+    int64_t delay;
+    int64_t round_trip;
 
     /* Delay calculation: delay = ((t4-t1) - (t3-t2)) / 2
        For PDelay: t1=req_sent, t2=req_received, t3=resp_sent, t4=resp_received
@@ -438,8 +439,8 @@ static void update_delay(delay_mechanism_t mechanism,
 
     // Both mechanisms use the same formula: delay = ((t4-t1) - (t3-t2)) / 2
     // All timestamps are now PTP timestamps for consistency
-    long long t4_t1_diff = ptp_timestamp_diff(t4, t1);
-    long long t3_t2_diff = ptp_timestamp_diff(t3, t2);
+    int64_t t4_t1_diff = ptp_timestamp_diff(t4, t1);
+    int64_t t3_t2_diff = ptp_timestamp_diff(t3, t2);
     round_trip = t4_t1_diff - t3_t2_diff;
 
     delay = round_trip / 2;
@@ -514,7 +515,7 @@ static int compare_clock_identity(const n64_t *c1, const n64_t *c2) {
 }
 
 static void
-bmca_update_roles(const uint8_t *msg, size_t len, unsigned t, int port_num) {
+bmca_update_roles(const uint8_t *msg, size_t len, uint32_t t, int port_num) {
     const ComMessageHdr *pComMesgHdr = (const ComMessageHdr *)msg;
     const AnnounceMessage *pAnnounceMesg =
         (const AnnounceMessage *)((const uint8_t *)pComMesgHdr +
@@ -661,7 +662,7 @@ static int clock_id_equal(n64_t *a, n64_t *b) {
 }
 
 static void ptp_tx_l2(client interface ethernet_tx_if i_eth,
-                      unsigned int *buf,
+                      uint32_t *buf,
                       int len,
                       int port_num) {
     len = len < 64 ? 64 : len;
@@ -673,9 +674,9 @@ static void ptp_tx_l3(client interface xtcp_if i_xtcp, uint8_t *buf, int len) {
 }
 
 static void ptp_tx_timed_l2(client interface ethernet_tx_if i_eth,
-                            unsigned int buf[],
+                            uint32_t buf[],
                             int len,
-                            unsigned &ts,
+                            uint32_t &ts,
                             int port_num) {
     len = len < 64 ? 64 : len;
     ts = i_eth.send_timed_packet((char *)buf, len, port_num);
@@ -685,11 +686,11 @@ static void ptp_tx_timed_l2(client interface ethernet_tx_if i_eth,
 static void ptp_tx_timed_l3(client interface xtcp_if i_xtcp,
                             uint8_t *buf,
                             int len,
-                            unsigned &ts) {
+                            uint32_t &ts) {
     uint32_t timestamp;
 
     i_xtcp.send_timed(g_ptp_l3_event_tx, (char *)buf, len, timestamp);
-    ts = (unsigned)timestamp - tile_timer_offset;
+    ts = (uint32_t)timestamp - tile_timer_offset;
 }
 
 static const xtcp_ipaddr_t ptp_mcast_group = PTP_1588_DEST_ADDR;
@@ -756,7 +757,7 @@ static void send_ptp_announce_msg(client interface ethernet_tx_if ?i_eth,
     (sizeof(ethernet_hdr_t) + sizeof(ComMessageHdr) +                          \
      sizeof(gPTPAnnounceMessage))
 
-    unsigned int buf0[(L2_GPTP_ANNOUNCE_PACKET_SIZE + 3) / 4];
+    uint32_t buf0[(L2_GPTP_ANNOUNCE_PACKET_SIZE + 3) / 4];
     uint8_t *buf = (uint8_t *)&buf0[0];
     ComMessageHdr *pComMesgHdr = (ComMessageHdr *)&buf[sizeof(ethernet_hdr_t)];
     AnnounceMessage *pAnnounceMesg =
@@ -886,15 +887,15 @@ static void send_ptp_sync_msg(client interface ethernet_tx_if ?i_eth,
     (sizeof(ethernet_hdr_t) + sizeof(ComMessageHdr) +                          \
      sizeof(gPTPFollowUpMessage))
 
-    unsigned int buf0[(L2_GPTP_FOLLOWUP_PACKET_SIZE + 3) / 4];
+    uint32_t buf0[(L2_GPTP_FOLLOWUP_PACKET_SIZE + 3) / 4];
     uint8_t *buf = (uint8_t *)&buf0[0];
     ComMessageHdr *pComMesgHdr = (ComMessageHdr *)&buf[sizeof(ethernet_hdr_t)];
     SyncMessage *pSyncMesg =
         (SyncMessage *)&buf[sizeof(ethernet_hdr_t) + sizeof(ComMessageHdr)];
     FollowUpMessage *pFollowUpMesg =
         (FollowUpMessage *)&buf[sizeof(ethernet_hdr_t) + sizeof(ComMessageHdr)];
-    unsigned local_egress_ts_l2 = 0;
-    unsigned local_egress_ts_l3 = 0;
+    uint32_t local_egress_ts_l2 = 0;
+    uint32_t local_egress_ts_l3 = 0;
     ptp_timestamp ptp_egress_ts_l2;
     ptp_timestamp ptp_egress_ts_l3;
 
@@ -1001,17 +1002,17 @@ static void send_ptp_sync_msg(client interface ethernet_tx_if ?i_eth,
 }
 
 static u16_t pdelay_req_seq_id[PTP_NUM_PORTS];
-static unsigned pdelay_request_sent[PTP_NUM_PORTS];
-static unsigned pdelay_request_sent_ts[PTP_NUM_PORTS];
+static uint32_t pdelay_request_sent[PTP_NUM_PORTS];
+static uint32_t pdelay_request_sent_ts[PTP_NUM_PORTS];
 
 // E2E delay tracking (for IEEE 1588 end-to-end delay mechanism)
 static u16_t e2e_delay_req_seq_id = 0;
-static unsigned e2e_delay_request_sent = 0;
-static unsigned e2e_delay_request_sent_ts = 0;
-static unsigned e2e_last_delay_req_time = 0;
+static uint32_t e2e_delay_request_sent = 0;
+static uint32_t e2e_delay_request_sent_ts = 0;
+static uint32_t e2e_last_delay_req_time = 0;
 
 // DelayResp residence time tracking for improved correction field accuracy
-static long long avg_residence_time_ns = 10000; // Initial estimate: 10µs
+static int64_t avg_residence_time_ns = 10000; // Initial estimate: 10µs
 static int residence_time_samples = 0;
 #define RESIDENCE_TIME_WEIGHT 8 // Weight for exponential moving average
 
@@ -1021,7 +1022,7 @@ static void send_ptp_pdelay_req_msg(client interface ethernet_tx_if i_eth,
     (sizeof(ComMessageHdr) + sizeof(PdelayReqMessage))
 #define L2_PDELAY_REQ_PACKET_SIZE                                              \
     (sizeof(ethernet_hdr_t) + L3_PDELAY_REQ_PACKET_SIZE)
-    unsigned int buf0[(L2_PDELAY_REQ_PACKET_SIZE + 3) / 4];
+    uint32_t buf0[(L2_PDELAY_REQ_PACKET_SIZE + 3) / 4];
     uint8_t *buf = (uint8_t *)&buf0[0];
     ComMessageHdr *pComMesgHdr = (ComMessageHdr *)&buf[sizeof(ethernet_hdr_t)];
 
@@ -1069,7 +1070,7 @@ static void send_ptp_pdelay_req_msg(client interface ethernet_tx_if i_eth,
     return;
 }
 
-void local_to_epoch_ts(unsigned local_ts, ptp_timestamp *epoch_ts) {
+void local_to_epoch_ts(uint32_t local_ts, ptp_timestamp *epoch_ts) {
     uint64_t sec;
     uint64_t nanosec;
 
@@ -1085,8 +1086,8 @@ void local_to_epoch_ts(unsigned local_ts, ptp_timestamp *epoch_ts) {
     sec = nanosec / NANOSECONDS_PER_SECOND;
     nanosec = nanosec % NANOSECONDS_PER_SECOND;
 
-    epoch_ts->seconds[1] = (unsigned)(sec >> 32);
-    epoch_ts->seconds[0] = (unsigned)sec;
+    epoch_ts->seconds[1] = (uint32_t)(sec >> 32);
+    epoch_ts->seconds[0] = (uint32_t)sec;
     epoch_ts->nanoseconds = nanosec;
 
     prev_pdelay_local_ts = local_ts;
@@ -1096,13 +1097,13 @@ void local_to_epoch_ts(unsigned local_ts, ptp_timestamp *epoch_ts) {
 
 static void send_ptp_pdelay_resp_msg(client interface ethernet_tx_if i_eth,
                                      char *pdelay_req_msg,
-                                     unsigned req_ingress_ts,
+                                     uint32_t req_ingress_ts,
                                      int port_num) {
 #define L3_PDELAY_RESP_PACKET_SIZE                                             \
     (sizeof(ComMessageHdr) + sizeof(PdelayRespMessage))
 #define L2_PDELAY_RESP_PACKET_SIZE                                             \
     (sizeof(ethernet_hdr_t) + L3_PDELAY_RESP_PACKET_SIZE)
-    unsigned int buf0[(L2_PDELAY_RESP_PACKET_SIZE + 3) / 4];
+    uint32_t buf0[(L2_PDELAY_RESP_PACKET_SIZE + 3) / 4];
     uint8_t *buf = (uint8_t *)&buf0[0];
     // received packet pointers.
     ComMessageHdr *pRxMesgHdr = (ComMessageHdr *)pdelay_req_msg;
@@ -1117,7 +1118,7 @@ static void send_ptp_pdelay_resp_msg(client interface ethernet_tx_if i_eth,
 
     ptp_timestamp epoch_req_ingress_ts;
     ptp_timestamp epoch_resp_ts;
-    unsigned local_resp_ts;
+    uint32_t local_resp_ts;
 
     set_ptp_ethernet_hdr(buf);
 
@@ -1193,7 +1194,7 @@ static void send_delay_req_msg(client interface ethernet_tx_if ?i_eth,
     (sizeof(ComMessageHdr) + sizeof(DelayReqMessage))
 #define L2_DELAY_REQ_PACKET_SIZE                                               \
     (sizeof(ethernet_hdr_t) + L3_DELAY_REQ_PACKET_SIZE)
-    unsigned int buf0[(L2_DELAY_REQ_PACKET_SIZE + 3) / 4];
+    uint32_t buf0[(L2_DELAY_REQ_PACKET_SIZE + 3) / 4];
     uint8_t *buf = (uint8_t *)&buf0[0];
     ComMessageHdr *pComMesgHdr = (ComMessageHdr *)&buf[sizeof(ethernet_hdr_t)];
     DelayReqMessage *pDelayReqMsg =
@@ -1258,14 +1259,14 @@ static void send_delay_req_msg(client interface ethernet_tx_if ?i_eth,
 static void send_delay_resp_msg(client interface ethernet_tx_if ?i_eth,
                                 client interface xtcp_if ?i_xtcp,
                                 char *delay_req_msg,
-                                unsigned req_ingress_ts,
+                                uint32_t req_ingress_ts,
                                 int port_num) {
 #define L3_DELAY_RESP_PACKET_SIZE                                              \
     (sizeof(ComMessageHdr) + sizeof(DelayRespMessage))
 #define L2_DELAY_RESP_PACKET_SIZE                                              \
     (sizeof(ethernet_hdr_t) + L3_DELAY_RESP_PACKET_SIZE)
 
-    unsigned int buf0[(L2_DELAY_RESP_PACKET_SIZE + 3) / 4];
+    uint32_t buf0[(L2_DELAY_RESP_PACKET_SIZE + 3) / 4];
     uint8_t *buf = (uint8_t *)&buf0[0];
     // received packet pointers
     ComMessageHdr *pRxMesgHdr = (ComMessageHdr *)delay_req_msg;
@@ -1276,7 +1277,7 @@ static void send_delay_resp_msg(client interface ethernet_tx_if ?i_eth,
              *)&buf[sizeof(ethernet_hdr_t) + sizeof(ComMessageHdr)];
 
     ptp_timestamp receive_timestamp;
-    unsigned resp_egress_ts = 0;
+    uint32_t resp_egress_ts = 0;
 
     set_ptp_ethernet_hdr(buf);
     memset(pTxMesgHdr, 0, L3_DELAY_RESP_PACKET_SIZE);
@@ -1310,7 +1311,7 @@ static void send_delay_resp_msg(client interface ethernet_tx_if ?i_eth,
     timestamp_to_network(pTxRespHdr->receiveTimestamp, receive_timestamp);
 
     // Use learned average residence time for correction field
-    long long estimated_residence_ns = avg_residence_time_ns;
+    int64_t estimated_residence_ns = avg_residence_time_ns;
     uint64_t correction =
         (estimated_residence_ns << 16) / NANOSECONDS_PER_SECOND;
 
@@ -1329,8 +1330,8 @@ static void send_delay_resp_msg(client interface ethernet_tx_if ?i_eth,
     }
 
     // Calculate actual residence time and update learned average
-    long long actual_residence_ns =
-        ((long long)resp_egress_ts - (long long)req_ingress_ts) * 10;
+    int64_t actual_residence_ns =
+        ((int64_t)resp_egress_ts - (int64_t)req_ingress_ts) * 10;
 
     // Update exponential moving average of residence time
     if (residence_time_samples < RESIDENCE_TIME_WEIGHT) {
@@ -1358,9 +1359,9 @@ static void send_delay_resp_msg(client interface ethernet_tx_if ?i_eth,
     return;
 }
 
-static unsigned received_pdelay[PTP_NUM_PORTS];
+static uint32_t received_pdelay[PTP_NUM_PORTS];
 static u16_t received_pdelay_id[PTP_NUM_PORTS];
-static unsigned pdelay_resp_ingress_ts[PTP_NUM_PORTS];
+static uint32_t pdelay_resp_ingress_ts[PTP_NUM_PORTS];
 static ptp_timestamp pdelay_request_receipt_ts[PTP_NUM_PORTS];
 
 static int qualify_announce(const ComMessageHdr *alias header, int this_port) {
@@ -1470,9 +1471,9 @@ static void pdelay_req_reset(int src_port) {
 void ptp_recv(client interface ethernet_tx_if ?i_eth,
               client interface xtcp_if ?i_xtcp,
               uint8_t buf[len],
-              unsigned local_ingress_ts,
-              unsigned src_port,
-              unsigned len) {
+              uint32_t local_ingress_ts,
+              uint32_t src_port,
+              uint32_t len) {
 
     /* Extract the ethernet header and ptp common message header */
     int is_l3 = isnull(i_eth) && !isnull(i_xtcp);
@@ -1751,7 +1752,7 @@ void ptp_recv(client interface ethernet_tx_if ?i_eth,
                 // seconds)
                 uint64_t correction = ntoh64(msg->correctionField);
                 // Convert correction to nanoseconds: correction * 10^9 / 2^16
-                long long correction_ns =
+                int64_t correction_ns =
                     (correction * NANOSECONDS_PER_SECOND) >> 16;
                 ptp_timestamp_offset(t3, correction_ns);
 
@@ -1782,8 +1783,8 @@ void ptp_reset(int port_num) {
     reset_ascapable(port_num);
 }
 
-static inline unsigned int get_tile_id_from_chanend(chanend c) {
-    unsigned int ci;
+static inline uint32_t get_tile_id_from_chanend(chanend c) {
+    uint32_t ci;
     asm("shr %0, %1, 16" : "=r"(ci) : "r"(c));
     return ci;
 }
@@ -1795,7 +1796,7 @@ void ptp_init(client interface ethernet_cfg_if i_eth_cfg,
               chanend c) {
     unsigned server_tile_id;
     unsigned other_tile_now;
-    unsigned this_tile_now;
+    uint32_t this_tile_now;
 
     i_eth_cfg.get_tile_id_and_timer_value(server_tile_id, other_tile_now);
     this_tile_now = get_local_time();
@@ -1887,7 +1888,7 @@ void ptp_init(client interface ethernet_cfg_if i_eth_cfg,
 
 void ptp_periodic(client interface ethernet_tx_if ?i_eth,
                   client interface xtcp_if ?i_xtcp,
-                  unsigned t) {
+                  uint32_t t) {
     for (int i = 0; i < PTP_NUM_PORTS; i++) {
         int role = ptp_port_info[i].role_state;
         int asCapable = ptp_port_info[i].asCapable;

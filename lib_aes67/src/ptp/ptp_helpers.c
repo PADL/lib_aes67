@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+
 #include "aes67_internal.h"
 
 n64_t parse_ptp_gmid(const char *gmid_str) {
@@ -29,7 +30,7 @@ n64_t parse_ptp_gmid(const char *gmid_str) {
         hex_byte[2] = '\0';
 
         char *endptr;
-        unsigned long val = strtoul(hex_byte, &endptr, 16);
+        uint64_t val = strtoul(hex_byte, &endptr, 16);
         if (*endptr != '\0' || val > 255) {
             return zero_n64; // Invalid hex byte
         }

@@ -12,9 +12,9 @@
  *
  **/
 typedef struct ptp_timestamp {
-    unsigned int seconds[2];  /*!< The integer portion of the timestamp in units
+    uint32_t seconds[2];  /*!< The integer portion of the timestamp in units
                                  of seconds */
-    unsigned int nanoseconds; /*!< The fractional portion of the timestamp in
+    uint32_t nanoseconds; /*!< The fractional portion of the timestamp in
                                  units of nanoseconds. */
 } ptp_timestamp;
 
@@ -23,7 +23,7 @@ typedef struct ptp_timestamp {
  *  so the nanoseconds field is always in the range 0-999999999
  */
 struct ptp_time_info {
-    unsigned int local_ts; /*!< A local timestamp based on the 100MHz
+    uint32_t local_ts; /*!< A local timestamp based on the 100MHz
                                 xCORE reference clock */
     ptp_timestamp ptp_ts;  /*!< A PTP timestamp in the gPTP clock domain
                              that matches the local timestamp */
@@ -45,9 +45,9 @@ typedef struct ptp_time_info ptp_time_info;
  *  nanoseconds.
  */
 struct ptp_time_info_mod64 {
-    unsigned int local_ts;
-    unsigned int ptp_ts_hi;
-    unsigned int ptp_ts_lo;
+    uint32_t local_ts;
+    uint32_t ptp_ts_hi;
+    uint32_t ptp_ts_lo;
     int ptp_adjust;
     int inv_ptp_adjust;
 };
@@ -181,7 +181,7 @@ void ptp_get_requested_time_info_mod64(chanend ptp_server,
  *                        server
  **/
 void local_timestamp_to_ptp(REFERENCE_PARAM(ptp_timestamp, ptp_ts),
-                            unsigned local_ts,
+                            uint32_t local_ts,
                             REFERENCE_PARAM(ptp_time_info, info));
 
 /** Convert a timestamp from the local xCORE timer to the least significant
@@ -196,7 +196,7 @@ void local_timestamp_to_ptp(REFERENCE_PARAM(ptp_timestamp, ptp_ts),
  *  \returns              the least significant 32-bits of PTP time in
  *                        nanoseconds
  **/
-unsigned local_timestamp_to_ptp_mod32(unsigned local_ts,
+uint32_t local_timestamp_to_ptp_mod32(uint32_t local_ts,
                                       REFERENCE_PARAM(ptp_time_info_mod64,
                                                       info));
 
@@ -210,7 +210,7 @@ unsigned local_timestamp_to_ptp_mod32(unsigned local_ts,
  *                        server.
  *  \returns              the local timestamp
  **/
-unsigned ptp_timestamp_to_local(REFERENCE_PARAM(ptp_timestamp, ts),
+uint32_t ptp_timestamp_to_local(REFERENCE_PARAM(ptp_timestamp, ts),
                                 REFERENCE_PARAM(ptp_time_info, info));
 
 /** Convert a PTP timestamp to a local xCORE timestamp.
@@ -222,7 +222,7 @@ unsigned ptp_timestamp_to_local(REFERENCE_PARAM(ptp_timestamp, ts),
  *convert \param info           a time information structure retrieved from the
  *PTP server. \returns              the local timestamp
  **/
-unsigned ptp_mod32_timestamp_to_local(unsigned ts,
+uint32_t ptp_mod32_timestamp_to_local(uint32_t ts,
                                       REFERENCE_PARAM(ptp_time_info_mod64,
                                                       info));
 

@@ -4,7 +4,7 @@
 #include <xclib.h>
 #include <debug_print.h>
 #include <xscope.h>
-#include <assert.h>
+#include <xassert.h>
 
 #include "media_clock_client.h"
 #include "media_clock_internal.h"

@@ -29,11 +29,11 @@ typedef enum ptp_port_role_t {
 
 typedef struct ptp_path_delay_t {
     int valid;
-    unsigned int pdelay;
-    unsigned int lost_responses;
-    unsigned int exchanges;
-    unsigned int multiple_resp_count;
-    unsigned int last_multiple_resp_seq_id;
+    uint32_t pdelay;
+    uint32_t lost_responses;
+    uint32_t exchanges;
+    uint32_t multiple_resp_count;
+    uint32_t last_multiple_resp_seq_id;
     n80_t rcvd_source_identity;
 } ptp_path_delay_t;
 
@@ -45,10 +45,10 @@ typedef struct ptp_port_info_t {
 
 extern ptp_port_info_t ptp_port_info[PTP_NUM_PORTS];
 
-extern unsigned ptp_reference_local_ts;
+extern uint32_t ptp_reference_local_ts;
 extern ptp_timestamp ptp_reference_ptp_ts;
-extern signed int g_ptp_adjust;
-extern signed int g_inv_ptp_adjust;
+extern int32_t g_ptp_adjust;
+extern int32_t g_inv_ptp_adjust;
 
 extern int32_t g_ptp_l3_event_rx;
 extern int32_t g_ptp_l3_general_rx;
@@ -67,7 +67,7 @@ ptp_port_role_t ptp_get_state(chanend ptp_server);
  *  \param info       structure to be filled with time information
  *
  **/
-void ptp_get_propagation_delay(chanend ptp_server, unsigned *pdelay);
+void ptp_get_propagation_delay(chanend ptp_server, uint32_t *pdelay);
 
 void ptp_get_as_path(chanend ptp_server,
                      uint16_t port_num,
@@ -132,14 +132,14 @@ void ptp_recv(
     client interface ethernet_tx_if ?i_eth_rx,
     client interface xtcp_if ?i_xtcp,
     uint8_t buf[len],
-    unsigned ts,
-    unsigned src_port,
-    unsigned len);
+    uint32_t ts,
+    uint32_t src_port,
+    uint32_t len);
 void ptp_periodic(
     client interface ethernet_tx_if ?i_tx_if,
     client interface xtcp_if ?i_xtcp,
-    unsigned);
-void ptp_get_reference_ptp_ts_mod_64(unsigned &hi, unsigned &lo);
+    uint32_t);
+void ptp_get_reference_ptp_ts_mod_64(uint32_t &hi, uint32_t &lo);
 void ptp_current_grandmaster(uint8_t grandmaster[8]);
 void ptp_get_path_sequence(uint16_t port_num,
                            uint16_t *count,
