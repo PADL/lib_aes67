@@ -1,10 +1,12 @@
 // Copyright (c) 2011-2017, XMOS Ltd, All rights reserved
+
 #include <inttypes.h>
 #include <xs1.h>
 #include "ptp.h"
 #include "ptp_internal.h"
 
 static void send_cmd(chanend c, char cmd) {
+    // FIXME: why do we send cmd thrice? alignment?
     outuchar(c, cmd);
     outuchar(c, cmd);
     outuchar(c, cmd);
@@ -30,6 +32,7 @@ void ptp_get_requested_time_info(chanend c, ptp_time_info &info) {
         c :> server_tile_id;
     }
     if (server_tile_id != get_local_tile_id()) {
+        // 3 = protocol instruction cycle difference
         info.local_ts = info.local_ts - (othercore_now - thiscore_now - 3);
     }
 }
@@ -64,8 +67,6 @@ void ptp_get_requested_time_info_mod64(chanend c, ptp_time_info_mod64 &info) {
         info.local_ts = info.local_ts - (othercore_now - thiscore_now - 3);
     }
 }
-
-void ptp_get_local_time_info_mod64(ptp_time_info_mod64 &info);
 
 void ptp_get_time_info_mod64(chanend ?c,
                              ptp_time_info_mod64 &info) {

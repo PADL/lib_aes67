@@ -489,11 +489,15 @@ aes67_status_t aes67_sdp_get_ipv4_session_origin(const aes67_sdp_t *sdp, uint8_t
 }
 
 aes67_status_t aes67_sdp_get_ptp_gmid(const aes67_sdp_t *sdp, uint8_t ptp_gmid[8]) {
-    n64_t parsed_gmid = parse_ptp_gmid(sdp->ptp_gmid);
+    aes67_status_t status;
+    n64_t parsed_gmid;
 
-    for (int i = 0; i < 8; i++) {
+    status = parse_ptp_gmid(sdp->ptp_gmid, &parsed_gmid);
+    if (status != AES67_STATUS_OK)
+        return status;
+
+    for (size_t i = 0; i < 8; i++)
         ptp_gmid[i] = parsed_gmid.data[i];
-    }
 
     return AES67_STATUS_OK;
 }

@@ -180,6 +180,6 @@ void ptp_output_test_clock(chanend ptp_link, port test_clock_port, int period);
 
 // Parse PTP GM ID from string format (AA-BB-CC-DD-EE-FF-GG-HH) to network byte
 // order n64_t
-n64_t parse_ptp_gmid(const char *unsafe gmid_str);
+aes67_status_t parse_ptp_gmid(const char *unsafe gmid_str, REFERENCE_PARAM(n64_t, result));
 
 extern int sync_lock;
