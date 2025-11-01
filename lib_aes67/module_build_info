@@ -13,10 +13,11 @@ SOURCE_DIRS = src src/ptp src/util src/aes67 src/rtp src/sap src/media_clock_and
 INCLUDE_DIRS = $(EXPORT_INCLUDE_DIRS) $(SOURCE_DIRS)
 
 XCC_FLAGS_media_clock_server.xc = $(XCC_FLAGS) -g -O3
-XCC_FLAGS_aes67_rtp_depacketizer.c = $(XCC_FLAGS) -O3
-XCC_FLAGS_aes67_manager.xc = $(XCC_FLAGS) -g -O0
-XCC_FLAGS_aes67_xfifo.c = $(XCC_FLAGS) -O3
 
-XCC_FLAGS_ptp.xc = $(XCC_FLAGS) -g -O0
-XCC_FLAGS_ptp_server.xc = $(XCC_FLAGS) -g -O0
-
+XCC_FLAGS_rtp_depacketizer.c = $(XCC_FLAGS) -O3
+XCC_FLAGS_rtp_fifo.c = $(XCC_FLAGS) -O3
+XCC_FLAGS_rtp_packetizer.c = $(XCC_FLAGS) -O3
+XCC_FLAGS_rtp_protocol.c = $(XCC_FLAGS) -O3
+XCC_FLAGS_rtp_receiver.xc = $(XCC_FLAGS) -O3
+XCC_FLAGS_rtp_sender.xc = $(XCC_FLAGS) -O3
+XCC_FLAGS_rtp_socket.xc = $(XCC_FLAGS) -O3
