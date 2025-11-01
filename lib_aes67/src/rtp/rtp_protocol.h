@@ -47,7 +47,7 @@ typedef struct {
 #else
 #define ETH_HEADER_LENGTH (14)
 #endif
-#define IP_HEADER_LENGTH (200)
+#define IP_HEADER_LENGTH (20)
 #define UDP_HEADER_LENGTH (8)
 #define RTP_HEADER_LENGTH (12)
 #define RTP_MAX_PAYLOAD (1440)
