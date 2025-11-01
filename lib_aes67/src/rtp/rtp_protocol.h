@@ -236,6 +236,140 @@ void aes67_rtp_init_sequence(aes67_rtp_sequence_state_t *s, uint16_t seq);
 
 int aes67_rtp_update_sequence(aes67_rtp_sequence_state_t *s, uint16_t seq);
 
+// ------- RTCP packet handling ---------
+
+// RTCP packet types (RFC 3550)
+#define RTCP_SR   200  // Sender Report
+#define RTCP_RR   201  // Receiver Report
+#define RTCP_SDES 202  // Source Description
+#define RTCP_BYE  203  // Goodbye
+#define RTCP_APP  204  // Application-defined
+
+// RTCP SDES item types
+#define RTCP_SDES_END   0
+#define RTCP_SDES_CNAME 1
+#define RTCP_SDES_NAME  2
+#define RTCP_SDES_EMAIL 3
+#define RTCP_SDES_PHONE 4
+#define RTCP_SDES_LOC   5
+#define RTCP_SDES_TOOL  6
+#define RTCP_SDES_NOTE  7
+#define RTCP_SDES_PRIV  8
+
+// RTCP common header (first 32 bits of all RTCP packets)
+typedef struct {
+    uint8_t version_p_rc;  // Version(2), Padding(1), Reception report count(5) or Source count(5)
+    uint8_t packet_type;   // RTCP packet type
+    uint16_t length;       // Length in 32-bit words minus 1
+} aes67_rtcp_header_t;
+
+// RTCP header field access macros
+#define RTCP_VERSION_GET(hdr) (((hdr)->version_p_rc >> 6) & 0x3)
+#define RTCP_VERSION_SET(hdr, v) \
+    ((hdr)->version_p_rc = ((hdr)->version_p_rc & 0x3F) | (((v) & 0x3) << 6))
+
+#define RTCP_PADDING_GET(hdr) (((hdr)->version_p_rc >> 5) & 0x1)
+#define RTCP_PADDING_SET(hdr, p) \
+    ((hdr)->version_p_rc = ((hdr)->version_p_rc & 0xDF) | (((p) & 0x1) << 5))
+
+#define RTCP_RC_GET(hdr) ((hdr)->version_p_rc & 0x1F)
+#define RTCP_RC_SET(hdr, rc) \
+    ((hdr)->version_p_rc = ((hdr)->version_p_rc & 0xE0) | ((rc) & 0x1F))
+
+// RTCP Sender Report
+typedef struct {
+    uint32_t ntp_timestamp_msw;  // NTP timestamp, most significant word
+    uint32_t ntp_timestamp_lsw;  // NTP timestamp, least significant word
+    uint32_t rtp_timestamp;      // RTP timestamp
+    uint32_t sender_packet_count; // Sender's packet count
+    uint32_t sender_octet_count;  // Sender's octet count
+} aes67_rtcp_sender_info_t;
+
+// RTCP Reception Report Block
+typedef struct {
+    uint32_t ssrc;              // SSRC of source
+    uint32_t fraction_lost;     // Fraction lost since last SR/RR (8 bits) + cumulative lost (24 bits)
+    uint32_t ext_highest_seq;   // Extended highest sequence number received
+    uint32_t interarrival_jitter; // Interarrival jitter
+    uint32_t lsr;               // Last SR timestamp
+    uint32_t dlsr;              // Delay since last SR
+} aes67_rtcp_reception_report_t;
+
+// Reception report field access macros
+#define RTCP_RR_FRACTION_LOST_GET(rr) (((rr)->fraction_lost >> 24) & 0xFF)
+#define RTCP_RR_FRACTION_LOST_SET(rr, f) \
+    ((rr)->fraction_lost = ((rr)->fraction_lost & 0x00FFFFFF) | (((f) & 0xFF) << 24))
+
+#define RTCP_RR_CUMULATIVE_LOST_GET(rr) ((rr)->fraction_lost & 0x00FFFFFF)
+#define RTCP_RR_CUMULATIVE_LOST_SET(rr, c) \
+    ((rr)->fraction_lost = ((rr)->fraction_lost & 0xFF000000) | ((c) & 0x00FFFFFF))
+
+// RTCP Sender Report packet
+typedef struct {
+    aes67_rtcp_header_t header;
+    uint32_t ssrc;
+    aes67_rtcp_sender_info_t sender_info;
+    // Variable number of reception reports follow
+    // aes67_rtcp_reception_report_t reports[RTCP_RC_GET(&header)];
+} aes67_rtcp_sr_t;
+
+// RTCP Receiver Report packet
+typedef struct {
+    aes67_rtcp_header_t header;
+    uint32_t ssrc;
+    // Variable number of reception reports follow
+    // aes67_rtcp_reception_report_t reports[RTCP_RC_GET(&header)];
+} aes67_rtcp_rr_t;
+
+// RTCP SDES item
+typedef struct {
+    uint8_t type;
+    uint8_t length;
+    // Variable length data follows
+    // uint8_t data[length];
+} aes67_rtcp_sdes_item_t;
+
+// RTCP SDES chunk
+typedef struct {
+    uint32_t ssrc;
+    // Variable number of SDES items follow, terminated by RTCP_SDES_END
+    // aes67_rtcp_sdes_item_t items[];
+} aes67_rtcp_sdes_chunk_t;
+
+// RTCP Source Description packet
+typedef struct {
+    aes67_rtcp_header_t header;
+    // Variable number of SDES chunks follow
+    // aes67_rtcp_sdes_chunk_t chunks[RTCP_RC_GET(&header)];
+} aes67_rtcp_sdes_t;
+
+// RTCP BYE packet
+typedef struct {
+    aes67_rtcp_header_t header;
+    // Variable number of SSRCs follow
+    // uint32_t ssrcs[RTCP_RC_GET(&header)];
+    // Optional reason string may follow (length byte + string)
+} aes67_rtcp_bye_t;
+
+// RTCP APP packet
+typedef struct {
+    aes67_rtcp_header_t header;
+    uint32_t ssrc;
+    uint32_t name;  // 4 ASCII characters
+    // Variable application-dependent data follows
+    // uint8_t data[];
+} aes67_rtcp_app_t;
+
+// Generic RTCP packet union
+typedef union {
+    aes67_rtcp_header_t header;
+    aes67_rtcp_sr_t sr;
+    aes67_rtcp_rr_t rr;
+    aes67_rtcp_sdes_t sdes;
+    aes67_rtcp_bye_t bye;
+    aes67_rtcp_app_t app;
+} aes67_rtcp_packet_t;
+
 #if AES67_XMOS
 aes67_status_t aes67_socket_recv(CLIENT_INTERFACE(xtcp_if, xtcp),
                                  REFERENCE_PARAM(const aes67_socket_t, sock),
