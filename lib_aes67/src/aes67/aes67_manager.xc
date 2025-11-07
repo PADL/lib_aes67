@@ -559,10 +559,14 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
     i_xtcp.join_multicast_group(sap_mcast_group);
 
     sap_rx_socket = i_xtcp.socket(XTCP_PROTOCOL_UDP);
+    assert(sap_rx_socket >= 0);
+
     err = i_xtcp.listen(sap_rx_socket, AES67_SAP_PORT, any_addr);
     assert(err == XTCP_SUCCESS);
 
     sap_tx_socket = i_xtcp.socket(XTCP_PROTOCOL_UDP);
+    assert(sap_tx_socket >= 0);
+
     err = i_xtcp.connect(sap_tx_socket, AES67_SAP_PORT, sap_mcast_group);
     assert(err == XTCP_SUCCESS);
 
