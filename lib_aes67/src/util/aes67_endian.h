@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include <inttypes.h>
 #include <ethernet.h>
+#include <inttypes.h>
+#include <string.h> // memcpy
 #include <xtcp.h>
 
 /* Host data types - little endian */
@@ -210,14 +211,13 @@ static inline uint32_t xtcp_ipaddr_to_network_uint32(xtcp_ipaddr_t addr) {
     return htonl(xtcp_ipaddr_to_host_uint32(addr));
 }
 
-// xtcp_ipaddr_t is an octet array in big-endian form, i.e. as we would read it
 static inline void host_uint32_to_xtcp_ipaddr(xtcp_ipaddr_t addr, uint32_t ip) {
+    memcpy(addr, &ip, sizeof(ip));
+}
+
+static inline void network_uint32_to_xtcp_ipaddr(xtcp_ipaddr_t addr, uint32_t ip) {
     addr[0] = (ip >> 24) & 0xFF;
     addr[1] = (ip >> 16) & 0xFF;
     addr[2] = (ip >> 8) & 0xFF;
     addr[3] = ip & 0xFF;
-}
-
-static inline void network_uint32_to_xtcp_ipaddr(xtcp_ipaddr_t addr, uint32_t ip) {
-    host_uint32_to_xtcp_ipaddr(addr, ntohl(ip));
 }
