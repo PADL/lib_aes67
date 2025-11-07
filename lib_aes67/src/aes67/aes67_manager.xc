@@ -163,7 +163,27 @@ static void sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) 
 }
 
 static int sdp_equal(const aes67_sdp_t &sdp1, const aes67_sdp_t &sdp2) {
-    return memcmp(&sdp1, &sdp2, sizeof(sdp2));
+    return (strcmp(sdp1.address, sdp2.address) == 0)
+#ifdef __XC__
+           && (strcmp(sdp1.__port, sdp2.__port) == 0)
+#else
+           && (strcmp(sdp1.port, sdp2.port) -= 0)
+#endif
+           && (strcmp(sdp1.session_id, sdp2.session_id) == 0) &&
+           (strcmp(sdp1.session_origin, sdp2.session_origin) == 0) &&
+           (strcmp(sdp1.session_name, sdp2.session_name) == 0) &&
+           (strcmp(sdp1.information, sdp2.information) == 0) &&
+           (sdp1.payload_type == sdp2.payload_type) &&
+           (sdp1.encoding == sdp2.encoding) &&
+           (sdp1.sample_size == sdp2.sample_size) &&
+           (sdp1.sample_rate == sdp2.sample_rate) &&
+           (sdp1.channel_count == sdp2.channel_count) &&
+           (sdp1.packet_duration == sdp2.packet_duration) &&
+           (strcmp(sdp1.ptp_gmid, sdp2.ptp_gmid) == 0) &&
+           (sdp1.ptp_domain == sdp2.ptp_domain) &&
+           (sdp1.clock_offset == sdp2.clock_offset) &&
+           (sdp1.framecount == sdp2.framecount) &&
+           (sdp1.sync_time == sdp2.sync_time);
 }
 
 #if AES67_FAST_CONNECT_ENABLED
