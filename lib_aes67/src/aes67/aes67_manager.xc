@@ -142,14 +142,16 @@ static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
     memcpy(&sdp_subscriptions[id], &sdp, sizeof(sdp));
 
     if (flags & SDP_SUBSCRIBE_FLAG_NEW)
-        memcpy(session_subscriptions[id], sdp.session_name, sizeof(sdp.session_name));
+        memcpy(session_subscriptions[id], sdp.session_name,
+               sizeof(sdp.session_name));
 #if AES67_FAST_CONNECT_ENABLED
     if (flags & SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT)
         sdp_store_fast_connect_info();
 #endif
 }
 
-static void sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
+static void
+sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
     assert(is_valid_receiver_id(id));
 
     memset(&sdp_subscriptions[id], 0, sizeof(sdp_subscriptions));
@@ -187,7 +189,8 @@ static int sdp_equal(const aes67_sdp_t &sdp1, const aes67_sdp_t &sdp2) {
 }
 
 #if AES67_FAST_CONNECT_ENABLED
-static size_t sdp_get_fast_connect_page_count(uint32_t valid_flags, uint32_t &page_size) {
+static size_t sdp_get_fast_connect_page_count(uint32_t valid_flags,
+                                              uint32_t &page_size) {
     page_size = fl_getPageSize();
 
     size_t validCount = popcount(valid_flags);
@@ -210,7 +213,8 @@ static void sdp_erase_fast_connect_info(void) {
 static void sdp_start_fast_connect(void) {
     union {
         aes67_sdp_fast_connect_t fc;
-        uint8_t buffer[sizeof(aes67_sdp_fast_connect_t) / DEFAULT_PAGE_SIZE + DEFAULT_PAGE_SIZE];
+        uint8_t buffer[sizeof(aes67_sdp_fast_connect_t) / DEFAULT_PAGE_SIZE +
+                       DEFAULT_PAGE_SIZE];
     } u;
     uint32_t page_size;
 
@@ -243,8 +247,9 @@ static void sdp_store_fast_connect_info(void) {
     uint32_t page_size;
 
     if (fl_readDataPage(0, (uint8_t *)&fc) != 0 ||
-        fc.magic == AES67_FAST_CONNECT_MAGIC);
-        fl_eraseDataSector(0);
+        fc.magic == AES67_FAST_CONNECT_MAGIC)
+        ;
+    fl_eraseDataSector(0);
 
     memset(&fc, 0, sizeof(fc));
 
@@ -268,13 +273,12 @@ static void sdp_store_fast_connect_info(void) {
 }
 #endif // AES67_FAST_CONNECT_ENABLED
 
-static aes67_status_t
-_sap_handle_message(client xtcp_if i_xtcp,
-                    chanend media_control,
-                    int32_t id,
-                    aes67_sap_message_type_t message_type,
-                    const aes67_sdp_t &sdp,
-                    uint32_t flags) {
+static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
+                                          chanend media_control,
+                                          int32_t id,
+                                          aes67_sap_message_type_t message_type,
+                                          const aes67_sdp_t &sdp,
+                                          uint32_t flags) {
     aes67_stream_info_t stream_info;
     aes67_status_t status;
 
@@ -288,8 +292,7 @@ _sap_handle_message(client xtcp_if i_xtcp,
         const char *unsafe encoding = aes67_encoding_name(sdp.encoding);
 
         debug_printf("unknown RTP encoding %d/%s\n", sdp.encoding,
-                     encoding != NULL ? encoding
-                                      : (const char *)"<nil>");
+                     encoding != NULL ? encoding : (const char *)"<nil>");
     } else if (status != AES67_STATUS_OK) {
         debug_printf("failed to marshal stream info: %s\n",
                      aes67_status_to_string(status));
@@ -311,8 +314,7 @@ _sap_handle_message(client xtcp_if i_xtcp,
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
         media_control <: stream_info;
     } else if (sdp_equal(sdp_subscriptions[id], sdp) == 0) {
-        debug_printf("resubscribing to changed stream %s\n",
-                     sdp.session_name);
+        debug_printf("resubscribing to changed stream %s\n", sdp.session_name);
         sdp_subscribe(id, sdp, flags);
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE;
         media_control <: stream_info;
@@ -321,11 +323,10 @@ _sap_handle_message(client xtcp_if i_xtcp,
     return AES67_STATUS_OK;
 }
 
-static aes67_status_t
-sap_handle_message(client xtcp_if i_xtcp,
-                   chanend media_control,
-                   uint8_t buf[len],
-                   size_t len) {
+static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
+                                         chanend media_control,
+                                         uint8_t buf[len],
+                                         size_t len) {
     aes67_status_t status;
     aes67_sap_t sap;
     aes67_sdp_t sdp;
@@ -350,12 +351,12 @@ sap_handle_message(client xtcp_if i_xtcp,
     }
 
     if (id == NUM_AES67_RECEIVERS) {
-        debug_printf("ignoring session %s, not subscribed\n",
-                     sdp.session_name);
+        debug_printf("ignoring session %s, not subscribed\n", sdp.session_name);
         return AES67_STATUS_OK;
     }
 
-    return _sap_handle_message(i_xtcp, media_control, id, sap.message_type, sdp, 0);
+    return _sap_handle_message(i_xtcp, media_control, id, sap.message_type, sdp,
+                               0);
 }
 
 static void sap_handle_event(client xtcp_if i_xtcp,
@@ -372,7 +373,7 @@ static void sap_handle_event(client xtcp_if i_xtcp,
         nrecv =
             i_xtcp.recvfrom(fd, buf, AES67_SAP_MAX_LEN, ipaddr, port_number);
         if (nrecv <= 0)
-        break;
+            break;
 
         sap_handle_message(i_xtcp, media_control, buf, nrecv);
         break;
@@ -433,16 +434,19 @@ sap_advertise_sender(client xtcp_if i_xtcp,
     return AES67_STATUS_OK;
 }
 
-static void sap_advertise_senders(client xtcp_if i_xtcp,
-                                  int sap_tx_socket,
-                                  const aes67_time_source_info_t &time_source_info) {
+static void
+sap_advertise_senders(client xtcp_if i_xtcp,
+                      int sap_tx_socket,
+                      const aes67_time_source_info_t &time_source_info) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_SENDERS; id++) {
         // a non-empty session name indicates we should send an advertisement
-        // payload_type == -1 indicates that we should withdarw the advertisement
+        // payload_type == -1 indicates that we should withdarw the
+        // advertisement
 
         if (sdp_is_advertising(id))
-            sap_advertise_sender(i_xtcp, sap_tx_socket, sdp_advertisements[id], time_source_info);
+            sap_advertise_sender(i_xtcp, sap_tx_socket, sdp_advertisements[id],
+                                 time_source_info);
     }
 }
 
@@ -458,15 +462,14 @@ static void aes67_periodic(client xtcp_if i_xtcp,
     sap_advertise_senders(i_xtcp, sap_tx_socket, time_source_info);
 }
 
-static aes67_status_t
-start_streaming(chanend media_control,
-                int32_t id,
-                const char session_name[],
-                size_t session_name_len,
-                xtcp_ipaddr_t ip_addr,
-                uint32_t sample_size,
-                uint32_t channel_count,
-                timer sap_timer) {
+static aes67_status_t start_streaming(chanend media_control,
+                                      int32_t id,
+                                      const char session_name[],
+                                      size_t session_name_len,
+                                      xtcp_ipaddr_t ip_addr,
+                                      uint32_t sample_size,
+                                      uint32_t channel_count,
+                                      timer sap_timer) {
     aes67_stream_info_t stream_info;
     aes67_status_t status;
     aes67_sdp_t sdp;
@@ -530,8 +533,7 @@ start_streaming(chanend media_control,
     return AES67_STATUS_OK;
 }
 
-static aes67_status_t
-stop_streaming(chanend media_control, int32_t id) {
+static aes67_status_t stop_streaming(chanend media_control, int32_t id) {
     if (!is_valid_sender_id(id)) {
         return AES67_STATUS_INVALID_STREAM_ID;
     }
