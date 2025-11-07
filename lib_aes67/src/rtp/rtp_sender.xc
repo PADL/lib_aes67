@@ -24,7 +24,7 @@ aes67_poll_stream_info_changed(uint32_t time,
                                int &src_ipaddr_changed) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_SENDERS; id++) {
-        aes67_stream_info_t &stream_info = sender_streams[id];
+        aes67_stream_info_t stream_info = sender_streams[id];
         aes67_sender_t &sender = senders[id];
 
         switch (stream_info.state) {
