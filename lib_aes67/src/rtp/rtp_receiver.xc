@@ -25,59 +25,66 @@ static int32_t lookup_receiver_from_fd(int32_t fd) {
 static aes67_status_t
 aes67_close_receiver(client xtcp_if i_xtcp,
                      const aes67_stream_info_t &stream_info,
-                     int32_t id) {
+                     int32_t id,
+                     const uint32_t flags) {
     aes67_socket_t &receiver_socket = receivers[id].socket;
 
-    i_xtcp.close(receiver_socket.fd);
+    if (!(flags & AES67_FLAG_RTP_ETH_HP) && receiver_socket.fd != -1)
+        i_xtcp.close(receiver_socket.fd);
+
+    memset(&receiver_socket, 0, sizeof(receiver_socket));
     receiver_socket.fd = -1;
 
     return AES67_STATUS_OK;
 }
 
 static aes67_status_t
-aes67_open_receiver(client xtcp_if i_xtcp,
-                    const aes67_stream_info_t &stream_info,
-                    int32_t id) {
-    xtcp_ipaddr_t src_addr, dest_addr;
+aes67_potential_receiver(client xtcp_if i_xtcp,
+                         const aes67_stream_info_t &stream_info,
+                         int32_t id,
+                         const uint32_t flags) {
+    aes67_socket_t &receiver_socket = receivers[id].socket;
     aes67_status_t err;
 
-    aes67_socket_t &receiver_socket = receivers[id].socket;
-    memset(&receiver_socket, 0, sizeof(receiver_socket));
+    assert(receiver_socket.fd == -1);
 
-    receiver_socket.fd = i_xtcp.socket(XTCP_PROTOCOL_UDP);
-    if (receiver_socket.fd < 0)
-        return AES67_STATUS_SOCKET_ERROR;
-
-    // source address can be used to filter packets
-    memcpy(src_addr, stream_info.src_addr, sizeof(xtcp_ipaddr_t));
-    memcpy(dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
-
-    err = i_xtcp.listen(receiver_socket.fd, stream_info.dest_port, dest_addr);
-    if (err) {
-        aes67_close_receiver(i_xtcp, stream_info, id);
-        return AES67_STATUS_SOCKET_ERROR;
-    }
-
+    // TODO: check if word length copies are atomic
+    memcpy(receiver_socket.src_addr, stream_info.src_addr, sizeof(xtcp_ipaddr_t));
+    memcpy(receiver_socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
     receiver_socket.dest_port = stream_info.dest_port;
-    memcpy(receiver_socket.dest_addr, dest_addr, sizeof(dest_addr));
-    memcpy(receiver_socket.src_addr, src_addr, sizeof(src_addr));
+
+    if (flags & AES67_FLAG_RTP_ETH_HP) {
+        receiver_socket.fd = -2; // use some dummy value
+    } else {
+        receiver_socket.fd = i_xtcp.socket(XTCP_PROTOCOL_UDP);
+        if (receiver_socket.fd < 0) {
+            aes67_close_receiver(i_xtcp, stream_info, id, flags);
+            return AES67_STATUS_SOCKET_ERROR;
+        }
+
+        err = i_xtcp.listen(receiver_socket.fd, receiver_socket.dest_port, receiver_socket.dest_addr);
+        if (err) {
+            aes67_close_receiver(i_xtcp, stream_info, id, flags);
+            return AES67_STATUS_SOCKET_ERROR;
+        }
+    }
 
     return AES67_STATUS_OK;
 }
 
-static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
+static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp, uint32_t flags) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
         // note: we need to compile with -O0 to avoid getting a dual issue exception
         // here. as we're not writing to the stream info, make a temporary copy.
-        aes67_stream_info_t stream_info = *aes67_get_receiver_stream(id);
+        const aes67_stream_info_t stream_info = *aes67_get_receiver_stream(id);
         aes67_socket_t &receiver_socket = receivers[id].socket;
 
         switch (stream_info.state) {
         case AES67_STREAM_STATE_DISABLED:
             if (receiver_socket.fd != -1) {
                 COMPILER_BARRIER();
-                aes67_close_receiver(i_xtcp, stream_info, id);
+                aes67_close_receiver(i_xtcp, stream_info, id, flags);
             }
             unsafe {
                 for (size_t ch = 0; ch < AES67_MAX_CHANNELS_PER_RECEIVER; ch++)
@@ -85,12 +92,12 @@ static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp) {
             }
             break;
         case AES67_STREAM_STATE_ENABLED:
-            if (receiver_socket.fd == -1) {
-                COMPILER_BARRIER();
-                aes67_open_receiver(i_xtcp, stream_info, id);
-            }
             break;
         case AES67_STREAM_STATE_POTENTIAL:
+            if (receiver_socket.fd == -1) {
+                COMPILER_BARRIER();
+                aes67_potential_receiver(i_xtcp, stream_info, id, flags);
+            }
             break;
         case AES67_STREAM_STATE_UPDATING:
             [[fallthrough]];
@@ -121,14 +128,19 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
         uint8_t octets[AES67_RTP_PACKET_STRUCT_SIZE];
         uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4];
     } pbuf;
-
+    uint32_t flags = 0;
     unsigned time;
     timer t;
+
+    if (!isnull(c_eth_rx_hp))
+        flags |= AES67_FLAG_RTP_ETH_HP;
 
     memset(&pbuf, 0, sizeof(pbuf));
     memset(&receivers, 0, sizeof(receivers));
 
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
+        receivers[id].socket.fd = -1;
+
         for (size_t ch = 0; ch < AES67_MAX_CHANNELS_PER_RECEIVER; ch++) {
             aes67_audio_fifo_t *fifo = &receivers[id].fifos[ch];
 
@@ -175,18 +187,16 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
 
                     // Find receiver with matching destination address
                     for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
+                        assert(receivers[id].socket.fd != -1 || receivers[id].socket.dest_addr != 0);
+
                         if (receivers[id].socket.fd == -1)
                             continue;
                         else if (dest_ip_host == xtcp_ipaddr_to_host_uint32(receivers[id].socket.dest_addr))
                             break;
                     }
 
-                    if (id == NUM_AES67_RECEIVERS) {
-#if DEBUG_RTP
-                        debug_printf("no received for host %x found!\n", dest_ip_host);
-#endif
+                    if (id == NUM_AES67_RECEIVERS)
                         break;
-                    }
 
                     aes67_receiver_t &receiver = receivers[id];
                     aes67_status_t status = aes67_rtp_parse_raw_words(receiver.socket, packet_info, pbuf.words);
@@ -214,7 +224,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                     break;
 
                 case t when timerafter(time) :> void:
-                    aes67_poll_stream_info_changed(i_xtcp);
+                    aes67_poll_stream_info_changed(i_xtcp, flags);
                     time += XS1_TIMER_HZ;
                     break;
             }
