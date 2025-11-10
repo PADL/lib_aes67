@@ -6,13 +6,11 @@ An AES67 audio-over-IP implementation for XMOS processors, providing networked a
 
 ## Overview
 
-lib\_aes67 implements the AES67 standard for interoperable IP audio networking, designed specifically for XMOS multicore processors. It provides both receiver and sender capabilities with PTP (IEEE 1588) clock synchronization, SAP/SDP session discovery, and real-time media clock recovery.
-
 ## Features
 
 - **AES67 Standard Compliance**: implementation of AES67 audio-over-IP standard
-- **Multi-stream Support**: Configurable number of simultaneous audio streams
-- **Audio Formats**: Support for L16, L24, and L32 encoding formats
+- **Multi-stream Support**: Configurable (at compile time) number of simultaneous audio streams
+- **Audio Formats**: Support for L16, L24, and L32 encodings
 - **Channel Flexibility**: Configurable number of channels per stream (depending on resources)
 - **PTP Clock Synchronization**: IEEE 1588 PTPv2 support
 - **Session Discovery**: SAP (Session Announcement Protocol) and SDP (Session Description Protocol)
@@ -44,7 +42,7 @@ void aes67_io_task(chanend ?ptp_svr,
                    client xtcp_if i_xtcp,
                    chanend c_ptp[num_ptp],
                    uint32_t num_ptp,
-                   enum ptp_server_type server_type);
+                   uint32_t flags);
 ```
 
 ### Receiving Audio Streams
@@ -111,6 +109,5 @@ void aes67_submit_sender_samples(chanend media,
 ## Dependencies
 
 - lib\_ethernet (Ethernet MAC support)
-- lib\_xtcp (TCP/IP stack) (PADL fork)
-- lwIP (TCP/IP stack) (PADL fork)
-
+- lib\_xtcp (TCP/IP stack)
+- lwIP (TCP/IP stack)
