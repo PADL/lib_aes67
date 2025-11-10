@@ -32,6 +32,14 @@ static void sdp_store_fast_connect_info(void);
 static aes67_session_name_t session_subscriptions[NUM_AES67_RECEIVERS];
 static aes67_sdp_t sdp_subscriptions[NUM_AES67_RECEIVERS];
 
+static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
+                                          chanend media_control,
+                                          int32_t id,
+                                          aes67_sap_message_type_t message_type,
+                                          const aes67_sdp_t &sdp,
+                                          uint32_t flags,
+                                          const uint32_t sap_timer_events);
+
 static void sdp_init_subscriptions(void) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++)
@@ -137,11 +145,15 @@ static int sdp_is_advertising(int32_t id) {
 #define SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT 0x2
 #define SDP_SUBSCRIBE_FLAG_PERMANENT 0x4
 #define SDP_SUBSCRIBE_FLAG_TIMED_OUT 0x8
+#define SDP_SUBSCRIBE_FLAG_START_FAST_CONNECT 0x10
 
-static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
+static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags, const uint32_t sap_timer_events) {
     assert(is_valid_receiver_id(id));
 
     memcpy(&sdp_subscriptions[id], &sdp, sizeof(sdp));
+
+    sdp_subscriptions[id].flags = 0;
+    sdp_subscriptions[id].timestamp = sap_timer_events;
 
     if (flags & AES67_SDP_FLAG_PERMANENT)
         sdp_subscriptions[id].flags |= AES67_SDP_FLAG_PERMANENT;
@@ -220,7 +232,9 @@ static void sdp_erase_fast_connect_info(void) {
         fl_eraseDataSector(0);
 }
 
-static void sdp_start_fast_connect(void) {
+static void sdp_start_fast_connect(client xtcp_if i_xtcp,
+                                   chanend media_control,
+                                   const uint32_t sap_timer_events) {
     union {
         aes67_sdp_fast_connect_t fc;
         uint8_t buffer[sizeof(aes67_sdp_fast_connect_t) / DEFAULT_PAGE_SIZE +
@@ -237,6 +251,8 @@ static void sdp_start_fast_connect(void) {
     if (page_size > DEFAULT_PAGE_SIZE)
         return;
 
+    debug_printf("AES67 fast connect: reading magic %x valid %x page_count %d\n", u.fc.magic, u.fc.valid, page_count);
+
     uint8_t *p = (uint8_t *)&u.fc + page_size;
     for (size_t i = 1; i < page_count; i++) {
         if (fl_readDataPage(i, p) != 0)
@@ -248,7 +264,12 @@ static void sdp_start_fast_connect(void) {
         if ((u.fc.valid & BIT(id)) == 0)
             continue;
 
-        sdp_subscribe(id, u.fc.sdp[sdp_index++], SDP_SUBSCRIBE_FLAG_NEW);
+        _sap_handle_message(i_xtcp, media_control, id,
+                            AES67_SAP_MESSAGE_ANNOUNCE,
+                            u.fc.sdp[sdp_index],
+                            SDP_SUBSCRIBE_FLAG_NEW | SDP_SUBSCRIBE_FLAG_START_FAST_CONNECT,
+                            sap_timer_events);
+        sdp_index++;
     }
 }
 
@@ -282,6 +303,8 @@ static void sdp_store_fast_connect_info(void) {
         fl_writeDataPage(i, p);
         p += page_size;
     }
+
+    debug_printf("AES67 fast connect: writing magic %x valid %x page_count %d\n", fc.magic, fc.valid, page_count);
 }
 #endif // AES67_FAST_CONNECT_ENABLED
 
@@ -323,12 +346,12 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
                      "size %d sample rate %d encoding %s\n",
                      sdp.session_name, sdp.channel_count, sdp.sample_size,
                      sdp.sample_rate, aes67_encoding_name(sdp.encoding));
-        sdp_subscribe(id, sdp, flags);
+        sdp_subscribe(id, sdp, flags, sap_timer_events);
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
         media_control <: stream_info;
     } else if (sdp_equal(sdp_subscriptions[id], sdp) == 0) {
         debug_printf("resubscribing to changed stream %s\n", sdp.session_name);
-        sdp_subscribe(id, sdp, flags);
+        sdp_subscribe(id, sdp, flags, sap_timer_events);
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE;
         media_control <: stream_info;
     }
@@ -369,9 +392,6 @@ static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
         return AES67_STATUS_OK;
     }
 
-    sdp.flags = 0;
-    sdp.timestamp = sap_timer_events;
-
     return _sap_handle_message(i_xtcp, media_control, id, sap.message_type, sdp,
                                0, sap_timer_events);
 }
@@ -398,7 +418,7 @@ static void sap_handle_event(client xtcp_if i_xtcp,
         break;
     case XTCP_IFUP:
 #if AES67_FAST_CONNECT_ENABLED
-        sdp_start_fast_connect();
+        sdp_start_fast_connect(i_xtcp, media_control, sap_timer_events);
         break;
 #endif
     default:
