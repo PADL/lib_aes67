@@ -119,6 +119,11 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                           chanend buf_ctl,
                           streaming chanend ?c_eth_rx_hp) {
     ethernet_packet_info_t packet_info;
+    // RTP packet _struct_ is laid out as a 2 byte length/alignment field
+    // followed by a RTP packet including Ethernet, IP and UDP headers.
+    // the structure has 4 byte alignment so to avoid warnings must be
+    // passed to C functions as a uint32_t array. (we cannot pass the
+    // structure itself as XC does not support packed structs)
     union {
         uint8_t octets[AES67_RTP_PACKET_STRUCT_SIZE];
         uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4];
