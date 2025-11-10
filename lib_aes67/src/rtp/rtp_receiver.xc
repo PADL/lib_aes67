@@ -126,7 +126,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
     // structure itself as XC does not support packed structs)
     union {
         uint8_t octets[AES67_RTP_PACKET_STRUCT_SIZE];
-        uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4];
+        uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS];
     } pbuf;
     uint32_t flags = 0;
     unsigned time;

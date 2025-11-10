@@ -162,6 +162,7 @@ typedef struct __attribute__((__packed__)) _aes67_rtp_packet {
 #endif // !__XC__
 
 #define AES67_RTP_PACKET_STRUCT_SIZE (2 + ETHERNET_MAX_PACKET_SIZE)
+#define AES67_RTP_PACKET_STRUCT_SIZE_WORDS (AES67_RTP_PACKET_STRUCT_SIZE / sizeof(uint32_t))
 
 #ifndef __XC__
 // return a pointer to the start of the Ethernet header
@@ -216,9 +217,9 @@ aes67_rtp_packet_start_rtp_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
 
 aes67_status_t aes67_rtp_recv_words(CLIENT_INTERFACE(xtcp_if, xtcp),
                                     aes67_socket_t *unsafe socket,
-                                    uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+                                    uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
 uint32_t
-aes67_rtp_packet_get_dest_ip_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+aes67_rtp_packet_get_dest_ip_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
 
 #else
 aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
@@ -423,7 +424,7 @@ aes67_status_t aes67_rtp_parse_raw(REFERENCE_PARAM(const aes67_socket_t, sock),
 aes67_status_t aes67_rtp_parse_raw_words(REFERENCE_PARAM(const aes67_socket_t, sock),
                                          REFERENCE_PARAM(const ethernet_packet_info_t,
                                                          packet_info),
-                                         uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+                                         uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
 #endif
 
 #define LL_IP4_MULTICAST_ADDR_0 0x01

@@ -99,7 +99,7 @@ aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
 #if AES67_XMOS
 aes67_status_t aes67_rtp_recv_words(chanend xtcp,
                                     aes67_socket_t *socket,
-                                    uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]) {
+                                    uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_rtp_recv(xtcp, socket, (aes67_rtp_packet_t *)words);
 }
 #endif
@@ -150,7 +150,7 @@ aes67_rtp_packet_start_raw(aes67_rtp_packet_t *packet) {
 }
 
 uint8_t *
-aes67_rtp_packet_start_raw_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]) {
+aes67_rtp_packet_start_raw_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_rtp_packet_start_raw((aes67_rtp_packet_t *)words);
 }
 
@@ -160,7 +160,7 @@ aes67_const_rtp_packet_start_rtp(const aes67_rtp_packet_t *packet) {
 }
 
 const uint8_t *
-aes67_const_rtp_packet_start_rtp_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]) {
+aes67_const_rtp_packet_start_rtp_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_const_rtp_packet_start_rtp((const aes67_rtp_packet_t *)words);
 }
 
@@ -170,7 +170,7 @@ aes67_rtp_packet_start_rtp(aes67_rtp_packet_t *packet) {
 }
 
 uint8_t *
-aes67_rtp_packet_start_rtp_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]) {
+aes67_rtp_packet_start_rtp_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_rtp_packet_start_rtp((aes67_rtp_packet_t *)words);
 }
 
@@ -181,7 +181,7 @@ aes67_rtp_packet_get_dest_ip(const aes67_rtp_packet_t *packet) {
 }
 
 uint32_t
-aes67_rtp_packet_get_dest_ip_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]) {
+aes67_rtp_packet_get_dest_ip_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_rtp_packet_get_dest_ip((const aes67_rtp_packet_t *)words);
 }
 
@@ -428,7 +428,7 @@ aes67_rtp_parse_raw(const aes67_socket_t *sock,
 aes67_status_t
 aes67_rtp_parse_raw_words(const aes67_socket_t *sock,
                           const ethernet_packet_info_t *packet_info,
-                          uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]) {
+                          uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_rtp_parse_raw(sock, packet_info, (aes67_rtp_packet_t *)words);
 }
 #endif
