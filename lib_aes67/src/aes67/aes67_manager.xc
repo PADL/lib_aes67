@@ -135,11 +135,16 @@ static int sdp_is_advertising(int32_t id) {
 
 #define SDP_SUBSCRIBE_FLAG_NEW 0x1
 #define SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT 0x2
+#define SDP_SUBSCRIBE_FLAG_PERMANENT 0x4
+#define SDP_SUBSCRIBE_FLAG_TIMED_OUT 0x8
 
 static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
     assert(is_valid_receiver_id(id));
 
     memcpy(&sdp_subscriptions[id], &sdp, sizeof(sdp));
+
+    if (flags & AES67_SDP_FLAG_PERMANENT)
+        sdp_subscriptions[id].flags |= AES67_SDP_FLAG_PERMANENT;
 
     if (flags & SDP_SUBSCRIBE_FLAG_NEW)
         memcpy(session_subscriptions[id], sdp.session_name,
@@ -151,10 +156,15 @@ static void sdp_subscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
 }
 
 static void
-sdp_unsubscribe(int32_t id, const aes67_sdp_t &sdp, uint32_t flags) {
+sdp_unsubscribe(int32_t id, uint32_t flags) {
     assert(is_valid_receiver_id(id));
 
-    memset(&sdp_subscriptions[id], 0, sizeof(sdp_subscriptions));
+    // permanent entries should never expire
+    if ((flags & SDP_SUBSCRIBE_FLAG_TIMED_OUT) &&
+        (flags & SDP_SUBSCRIBE_FLAG_PERMANENT))
+        return;
+
+    memset(&sdp_subscriptions[id], 0, sizeof(sdp_subscriptions[id]));
 
     if (flags & SDP_SUBSCRIBE_FLAG_NEW)
         session_subscriptions[id][0] = '\0';
@@ -169,7 +179,7 @@ static int sdp_equal(const aes67_sdp_t &sdp1, const aes67_sdp_t &sdp2) {
 #ifdef __XC__
            && (strcmp(sdp1.__port, sdp2.__port) == 0)
 #else
-           && (strcmp(sdp1.port, sdp2.port) -= 0)
+           && (strcmp(sdp1.port, sdp2.port) == 0)
 #endif
            && (strcmp(sdp1.session_id, sdp2.session_id) == 0) &&
            (strcmp(sdp1.session_origin, sdp2.session_origin) == 0) &&
@@ -278,7 +288,8 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
                                           int32_t id,
                                           aes67_sap_message_type_t message_type,
                                           const aes67_sdp_t &sdp,
-                                          uint32_t flags) {
+                                          uint32_t flags,
+                                          const uint32_t sap_timer_events) {
     aes67_stream_info_t stream_info;
     aes67_status_t status;
 
@@ -302,7 +313,7 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
 
     if (message_type == AES67_SAP_MESSAGE_DELETE) {
         debug_printf("unsubscribing from stream %s\n", sdp.session_name);
-        sdp_unsubscribe(id, sdp, flags);
+        sdp_unsubscribe(id, flags);
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
         media_control <: id;
     } else if (!sdp_is_subscribed(id)) {
@@ -326,7 +337,8 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
 static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
                                          chanend media_control,
                                          uint8_t buf[len],
-                                         size_t len) {
+                                         size_t len,
+                                         const uint32_t sap_timer_events) {
     aes67_status_t status;
     aes67_sap_t sap;
     aes67_sdp_t sdp;
@@ -355,14 +367,18 @@ static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
         return AES67_STATUS_OK;
     }
 
+    sdp.flags = 0;
+    sdp.timestamp = sap_timer_events;
+
     return _sap_handle_message(i_xtcp, media_control, id, sap.message_type, sdp,
-                               0);
+                               0, sap_timer_events);
 }
 
 static void sap_handle_event(client xtcp_if i_xtcp,
                              chanend media_control,
                              xtcp_event_type_t event,
-                             int fd) {
+                             int fd,
+                             const uint32_t sap_timer_events) {
     uint8_t buf[AES67_SAP_MAX_LEN];
     int32_t nrecv;
     xtcp_ipaddr_t ipaddr = {0};
@@ -375,7 +391,8 @@ static void sap_handle_event(client xtcp_if i_xtcp,
         if (nrecv <= 0)
             break;
 
-        sap_handle_message(i_xtcp, media_control, buf, nrecv);
+
+        sap_handle_message(i_xtcp, media_control, buf, nrecv, sap_timer_events);
         break;
     case XTCP_IFUP:
 #if AES67_FAST_CONNECT_ENABLED
@@ -453,11 +470,18 @@ sap_advertise_senders(client xtcp_if i_xtcp,
 static void aes67_periodic(client xtcp_if i_xtcp,
                            chanend media_control,
                            int sap_tx_socket,
-                           unsigned sap_timeout) {
+                           unsigned sap_timeout,
+                           const uint32_t sap_timer_events) {
     aes67_time_source_info_t time_source_info;
 
     media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_TIME_SOURCE_INFO;
     media_control :> time_source_info;
+
+#pragma unsafe arrays
+    for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
+        if (sap_timer_events > sdp_subscriptions[id].timestamp + AES67_SAP_TIMEOUT)
+            sdp_unsubscribe(id, SDP_SUBSCRIBE_FLAG_TIMED_OUT);
+    }
 
     sap_advertise_senders(i_xtcp, sap_tx_socket, time_source_info);
 }
@@ -564,6 +588,7 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
     uint32_t pending_events = 0;
     aes67_time_source_info_t last_time_source_info;
     aes67_media_clock_info_t last_media_clock_info;
+    uint32_t sap_timer_events = 0;
 
 #if AES67_FAST_CONNECT_ENABLED
     if (isnull(qspi_ports)) {
@@ -599,7 +624,7 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             int32_t fd, id;
 
             event = i_xtcp.get_event(fd);
-            sap_handle_event(i_xtcp, media_control, event, fd);
+            sap_handle_event(i_xtcp, media_control, event, fd, sap_timer_events);
             break;
 
         case i_aes67[size_t i].subscribe(int16_t id, const char session_name[])->aes67_status_t status:
@@ -651,7 +676,8 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             if (status != AES67_STATUS_OK)
                 break;
 
-            status = _sap_handle_message(i_xtcp, media_control, id, message_type, sdp, SDP_SUBSCRIBE_FLAG_NEW);
+            status = _sap_handle_message(i_xtcp, media_control, id, message_type, sdp,
+                                         SDP_SUBSCRIBE_FLAG_NEW | SDP_SUBSCRIBE_FLAG_PERMANENT, sap_timer_events);
             break;
         case i_aes67[size_t i].advertise(int16_t id, const char session_name[], uint8_t ip_addr[4], uint32_t sample_size, uint32_t channel_count)->aes67_status_t status:
             aes67_session_name_t _session_name;
@@ -711,8 +737,9 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             }
             break;
         case sap_timer when timerafter(sap_timeout) :> void:
-            aes67_periodic(i_xtcp, media_control, sap_tx_socket, sap_timeout);
+            aes67_periodic(i_xtcp, media_control, sap_tx_socket, sap_timeout, sap_timer_events);
             sap_timeout += AES67_SAP_PERIODIC_TIME;
+            sap_timer_events++;
             break;
         }
     }

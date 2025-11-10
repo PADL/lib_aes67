@@ -34,7 +34,8 @@
 #define AES67_SAP_MAX_HEADER (36)
 #define AES67_SAP_MAX_LEN (AES67_SAP_MAX_HEADER + AES67_SDP_MAX_LEN)
 
-#define AES67_SAP_PERIODIC_TIME (XS1_TIMER_HZ * 10)
+#define AES67_SAP_PERIODIC_TIME (XS1_TIMER_HZ * 10) // 10 seconds
+#define AES67_SAP_TIMEOUT (60 * 6) // expire after this if not readvertisement, in units of AES67_SAP_PERIODIC_TIME
 
 typedef struct _aes67_sap {
     aes67_sap_message_type_t message_type;
@@ -98,6 +99,10 @@ typedef struct _aes67_sdp {
 
     uint32_t framecount;    // a=framecount
     uint32_t sync_time;     // a=sync-time
+
+#define AES67_SDP_FLAG_PERMANENT 0x1
+    uint32_t flags;
+    uint32_t timestamp; // this is in units of AES67_SAP_PERIODIC_TIME
 } aes67_sdp_t;
 
 #if AES67_FAST_CONNECT_ENABLED
