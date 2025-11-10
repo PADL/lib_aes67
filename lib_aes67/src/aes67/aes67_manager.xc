@@ -270,7 +270,9 @@ static void sdp_store_fast_connect_info(void) {
             continue;
 
         fc.valid |= BIT(id);
-        memcpy(&fc.sdp[i++], &sdp_subscriptions[id], sizeof(aes67_sdp_t));
+        memcpy(&fc.sdp[i], &sdp_subscriptions[id], sizeof(aes67_sdp_t));
+        fc.sdp[i].timestamp = 0; // the timestamp has no meaning across reboots
+        i++;
     }
 
     size_t page_count = sdp_get_fast_connect_page_count(fc.valid, page_size);
