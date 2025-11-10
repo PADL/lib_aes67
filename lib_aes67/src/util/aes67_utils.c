@@ -165,6 +165,8 @@ const char *aes67_status_to_string(aes67_status_t status) {
         return "Invalid UDP destination port";
     case AES67_STATUS_INVALID_IP_CHECKSUM:
         return "Invalid IP checksum";
+    case AES67_STATUS_INVALID_PTP_ADDRESS:
+        return "Invalid PTP address";
     case AES67_STATUS_UNKNOWN_ERROR:
         /* fallthrough */
     default:
