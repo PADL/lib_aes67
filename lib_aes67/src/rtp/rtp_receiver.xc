@@ -168,10 +168,10 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
 
                 aes67_receiver_t &receiver = receivers[id];
 
-                if (aes67_rtp_recv_words(i_xtcp, &receivers[id].socket, pbuf.words) == 0) {
+                if (aes67_rtp_recv_opaque(i_xtcp, &receivers[id].socket, pbuf.words) == 0) {
                     aes67_status_t status;
 
-                    status = aes67_process_rtp_packet_words(buf_ctl, id, receiver, pbuf.words);
+                    status = aes67_process_rtp_packet_opaque(buf_ctl, id, receiver, pbuf.words);
 #if DEBUG_RTP
                     if (status != AES67_STATUS_OK)
                         debug_printf("RTP packet error: %s\n", aes67_status_to_string(status));
@@ -182,7 +182,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                 // note: offset of 2 is for alignment, ensures remainder of PDU is 4 byte aligned
                 case !isnull(c_eth_rx_hp) => ethernet_receive_hp_packet(c_eth_rx_hp, &pbuf.octets[2], packet_info):
                     // Parse IP header to extract destination address, it may be junk but we'll parse properly later
-                    uint32_t dest_ip_host = aes67_rtp_packet_get_dest_ip_words(pbuf.words);
+                    uint32_t dest_ip_host = aes67_rtp_packet_get_dest_ip_opaque(pbuf.words);
                     int32_t id;
 
                     // Find receiver with matching destination address
@@ -199,7 +199,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                         break; // packet not for a stream that has been registered (yet)
 
                     aes67_receiver_t &receiver = receivers[id];
-                    aes67_status_t status = aes67_rtp_parse_raw_words(receiver.socket, packet_info, pbuf.words);
+                    aes67_status_t status = aes67_rtp_parse_raw_opaque(receiver.socket, packet_info, pbuf.words);
                     if (status != AES67_STATUS_OK) {
 #if DEBUG_RTP
                         debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
@@ -207,7 +207,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                         break;
                     }
 
-                    status = aes67_process_rtp_packet_words(buf_ctl, id, receiver, pbuf.words);
+                    status = aes67_process_rtp_packet_opaque(buf_ctl, id, receiver, pbuf.words);
 #if DEBUG_RTP
                     if (status != AES67_STATUS_OK)
                         debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));

@@ -210,10 +210,10 @@ void aes67_get_all_receiver_samples(uint32_t *output_buffer,
 }
 
 #ifdef AES67_XMOS
-aes67_status_t aes67_process_rtp_packet_words(chanend buf_ctl,
-                                              int32_t id,
-                                              aes67_receiver_t *receiver,
-                                              const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
+aes67_status_t aes67_process_rtp_packet_opaque(chanend buf_ctl,
+                                               int32_t id,
+                                               aes67_receiver_t *receiver,
+                                               const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_process_rtp_packet(buf_ctl, id, receiver, (const aes67_rtp_packet_t *)words);
 }
 #endif

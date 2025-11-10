@@ -213,19 +213,19 @@ aes67_status_t aes67_rtp_recv(CLIENT_INTERFACE(xtcp_if, xtcp),
 
 #ifdef AES67_XMOS
 uint8_t *alias
-aes67_rtp_packet_start_raw_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
+aes67_rtp_packet_start_raw_opaque(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
 
 const uint8_t *alias
-aes67_const_rtp_packet_start_rtp_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
+aes67_const_rtp_packet_start_rtp_opaque(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
 
 uint8_t *alias
-aes67_rtp_packet_start_rtp_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
+aes67_rtp_packet_start_rtp_opaque(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
 
-aes67_status_t aes67_rtp_recv_words(CLIENT_INTERFACE(xtcp_if, xtcp),
-                                    aes67_socket_t *unsafe socket,
-                                    uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
+aes67_status_t aes67_rtp_recv_opaque(CLIENT_INTERFACE(xtcp_if, xtcp),
+                                     aes67_socket_t *unsafe socket,
+                                     uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
 uint32_t
-aes67_rtp_packet_get_dest_ip_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
+aes67_rtp_packet_get_dest_ip_opaque(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
 
 #else
 aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
@@ -427,10 +427,10 @@ aes67_status_t aes67_rtp_parse_raw(REFERENCE_PARAM(const aes67_socket_t, sock),
 #endif
 
 #ifdef AES67_XMOS
-aes67_status_t aes67_rtp_parse_raw_words(REFERENCE_PARAM(const aes67_socket_t, sock),
-                                         REFERENCE_PARAM(const ethernet_packet_info_t,
-                                                         packet_info),
-                                         uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
+aes67_status_t aes67_rtp_parse_raw_opaque(REFERENCE_PARAM(const aes67_socket_t, sock),
+                                          REFERENCE_PARAM(const ethernet_packet_info_t,
+                                                          packet_info),
+                                          uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]);
 #endif
 
 #define LL_IP4_MULTICAST_ADDR_0 0x01

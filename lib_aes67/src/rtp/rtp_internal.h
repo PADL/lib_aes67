@@ -28,10 +28,10 @@ aes67_process_rtp_packet(chanend buf_ctl,
 #endif
 
 aes67_status_t
-aes67_process_rtp_packet_words(chanend buf_ctl,
-                               int32_t id,
-                               REFERENCE_PARAM(aes67_receiver_t, receiver),
-                               const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+aes67_process_rtp_packet_opaque(chanend buf_ctl,
+                                int32_t id,
+                                REFERENCE_PARAM(aes67_receiver_t, receiver),
+                                const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
 
 typedef struct _aes67_sender {
     // immutable, shared file descriptor
