@@ -208,6 +208,7 @@ static int sdp_equal(const aes67_sdp_t &sdp1, const aes67_sdp_t &sdp2) {
            (sdp1.clock_offset == sdp2.clock_offset) &&
            (sdp1.framecount == sdp2.framecount) &&
            (sdp1.sync_time == sdp2.sync_time);
+  // note: flags and timestamp are not compared
 }
 
 #if AES67_FAST_CONNECT_ENABLED
