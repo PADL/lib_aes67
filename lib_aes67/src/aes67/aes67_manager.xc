@@ -322,7 +322,9 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
     if (!is_valid_receiver_id(id))
         return AES67_STATUS_INVALID_STREAM_ID;
 
+#ifdef AES67_FAST_CONNECT_ENABLED
     flags |= SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT;
+#endif
 
     status = sdp_to_stream_info(stream_info, id, sdp);
     if (status == AES67_STATUS_UNKNOWN_RTP_ENCODING) {
