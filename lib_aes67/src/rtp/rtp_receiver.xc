@@ -21,7 +21,6 @@ static int32_t lookup_receiver_from_fd(int32_t fd) {
     return -1;
 }
 
-
 static aes67_status_t
 aes67_close_receiver(client xtcp_if i_xtcp,
                      const aes67_stream_info_t &stream_info,
@@ -91,16 +90,12 @@ static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp, uint32_
                     aes67_audio_fifo_disable(&receivers[id].fifos[ch]);
             }
             break;
-        case AES67_STREAM_STATE_ENABLED:
-            break;
         case AES67_STREAM_STATE_POTENTIAL:
             if (receiver_socket.fd == -1) {
                 COMPILER_BARRIER();
                 aes67_potential_receiver(i_xtcp, stream_info, id, flags);
             }
             break;
-        case AES67_STREAM_STATE_UPDATING:
-            [[fallthrough]];
         default:
             break;
         }
@@ -133,7 +128,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
     timer t;
 
     if (!isnull(c_eth_rx_hp))
-        flags |= AES67_FLAG_RTP_ETH_HP;
+        flags |= AES67_FLAG_RTP_ETH_HP; // indicate raw Ethernet frames to be used
 
     memset(&pbuf, 0, sizeof(pbuf));
     memset(&receivers, 0, sizeof(receivers));
@@ -196,7 +191,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                     }
 
                     if (id == NUM_AES67_RECEIVERS)
-                        break;
+                        break; // packet not for a stream that has been registered (yet)
 
                     aes67_receiver_t &receiver = receivers[id];
                     aes67_status_t status = aes67_rtp_parse_raw_words(receiver.socket, packet_info, pbuf.words);
