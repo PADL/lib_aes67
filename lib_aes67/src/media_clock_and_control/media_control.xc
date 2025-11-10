@@ -25,12 +25,19 @@ join_receiver_stream(client ethernet_cfg_if i_eth_cfg,
     ethernet_macaddr_filter_t macaddr_filter;
 
     memcpy(rtp_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
+
+    debug_printf("join_receiver_stream: %d.%d.%d.%d flags %x\n",
+                 rtp_addr[0], rtp_addr[1], rtp_addr[2], rtp_addr[3], flags);
+
     i_xtcp.join_multicast_group(rtp_addr);
 
     if (flags & AES67_FLAG_RTP_ETH_HP) {
         // Delete old filter and add HP filter for multicast MAC address
+        // this is because the XTCP stack automatically adds LP filters
+        // when joining multicast groups
         ipv4_to_multicast_mac(rtp_addr, macaddr_filter.addr);
         macaddr_filter.appdata = 0;
+
         i_eth_cfg.del_macaddr_filter(0, 0, macaddr_filter);
         i_eth_cfg.add_macaddr_filter(0, 1, macaddr_filter);
     }
@@ -47,7 +54,6 @@ leave_receiver_stream(client ethernet_cfg_if i_eth_cfg,
     ethernet_macaddr_filter_t macaddr_filter;
 
     memcpy(rtp_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
-    i_xtcp.leave_multicast_group(rtp_addr);
 
     if (flags & AES67_FLAG_RTP_ETH_HP) {
         // Delete HP filter for multicast MAC address
@@ -55,6 +61,9 @@ leave_receiver_stream(client ethernet_cfg_if i_eth_cfg,
         macaddr_filter.appdata = 0;
         i_eth_cfg.del_macaddr_filter(0, 1, macaddr_filter);
     }
+
+    // now leave multicast group
+    i_xtcp.leave_multicast_group(rtp_addr);
 
     return AES67_STATUS_OK;
 }

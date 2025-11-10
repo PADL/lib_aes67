@@ -117,11 +117,15 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                           chanend buf_ctl,
                           streaming chanend ?c_eth_rx_hp) {
     ethernet_packet_info_t packet_info;
-    aes67_rtp_packet_t packet = {0};
-    uint8_t *rxbuf = aes67_rtp_packet_start_raw(packet);
-    timer t;
-    unsigned time;
+    union {
+        uint8_t octets[AES67_RTP_PACKET_STRUCT_SIZE];
+        uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4];
+    } pbuf;
 
+    unsigned time;
+    timer t;
+
+    memset(&pbuf, 0, sizeof(pbuf));
     memset(&receivers, 0, sizeof(receivers));
 
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
@@ -152,23 +156,21 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
 
                 aes67_receiver_t &receiver = receivers[id];
 
-                if (aes67_rtp_recv(i_xtcp, &receivers[id].socket, &packet) == 0) {
+                if (aes67_rtp_recv_words(i_xtcp, &receivers[id].socket, pbuf.words) == 0) {
                     aes67_status_t status;
 
-                    status =
-                        aes67_process_rtp_packet(buf_ctl, id, receiver, packet);
+                    status = aes67_process_rtp_packet_words(buf_ctl, id, receiver, pbuf.words);
 #if DEBUG_RTP
                     if (status != AES67_STATUS_OK)
-                        debug_printf("RTP packet error: %s\n",
-                                     aes67_status_to_string(status));
+                        debug_printf("RTP packet error: %s\n", aes67_status_to_string(status));
 #endif
                 }
                 break;
 
-                case !isnull(c_eth_rx_hp) => ethernet_receive_hp_packet(c_eth_rx_hp, (uint8_t *)rxbuf, packet_info):
+                // note: offset of 2 is for alignment, ensures remainder of PDU is 4 byte aligned
+                case !isnull(c_eth_rx_hp) => ethernet_receive_hp_packet(c_eth_rx_hp, &pbuf.octets[2], packet_info):
                     // Parse IP header to extract destination address, it may be junk but we'll parse properly later
-                    uint32_t *dest_ip_ptr = (uint32_t *)(void *)(rxbuf + ETH_HEADER_LENGTH + 16);
-                    uint32_t dest_ip_host = ntohl(*dest_ip_ptr);
+                    uint32_t dest_ip_host = aes67_rtp_packet_get_dest_ip_words(pbuf.words);
                     int32_t id;
 
                     // Find receiver with matching destination address
@@ -179,18 +181,26 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                             break;
                     }
 
-                    if (id == NUM_AES67_RECEIVERS)
+                    if (id == NUM_AES67_RECEIVERS) {
+#if DEBUG_RTP
+                        debug_printf("no received for host %x found!\n", dest_ip_host);
+#endif
                         break;
+                    }
 
                     aes67_receiver_t &receiver = receivers[id];
-                    aes67_status_t status = aes67_raw_recv_rtp(c_eth_rx_hp, receiver.socket, packet_info, packet);
-                    if (status != AES67_STATUS_OK)
+                    aes67_status_t status = aes67_rtp_parse_raw_words(receiver.socket, packet_info, pbuf.words);
+                    if (status != AES67_STATUS_OK) {
+#if DEBUG_RTP
+                        debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
+#endif
                         break;
+                    }
 
-                    status = aes67_process_rtp_packet(buf_ctl, id, receiver, packet);
+                    status = aes67_process_rtp_packet_words(buf_ctl, id, receiver, pbuf.words);
 #if DEBUG_RTP
                     if (status != AES67_STATUS_OK)
-                        debug_printf("RTP HP packet error: %s\n", aes67_status_to_string(status));
+                        debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
 #endif
                     break;
 

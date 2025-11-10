@@ -50,13 +50,13 @@ typedef struct {
 #define IP_HEADER_LENGTH (20)
 #define UDP_HEADER_LENGTH (8)
 #define RTP_HEADER_LENGTH (12)
-#define RTP_MAX_PAYLOAD (1440)
 
-#define ETH_MTU (ETH_HEADER_LENGTH + IP_HEADER_LENGTH + UDP_HEADER_LENGTH + RTP_HEADER_LENGTH + RTP_MAX_PAYLOAD)
+#define RTP_MAX_PAYLOAD (ETHERNET_MAX_PACKET_SIZE - (ETH_HEADER_LENGTH + IP_HEADER_LENGTH + UDP_HEADER_LENGTH + RTP_HEADER_LENGTH))
 
 #define RTP_VERSION (2)
 
-typedef struct {
+#ifndef __XC__
+typedef struct __attribute__((__packed__)) {
     uint8_t
         version_p_x_cc; // Version(2), Padding(1), Extension(1), CSRC count(4)
     uint8_t m_pt;       // Marker(1), Payload Type(7)
@@ -64,6 +64,7 @@ typedef struct {
     uint32_t timestamp;
     uint32_t ssrc;
 } aes67_rtp_header_t;
+#endif
 
 // RFC 3550 RTP header field access macros - version_p_x_cc byte
 #define RTP_VERSION_GET(hdr) (((hdr)->version_p_x_cc >> 6) & 0x3)
@@ -112,9 +113,12 @@ typedef struct {
 #define IP_VERSION_4 4
 #define IP_PROTO_UDP 17
 
+#ifndef __XC__
+// don't define these structures when building with XC because the alignment
+// will be wrong; instead you must add accessors
 
 // IP header structure
-typedef struct _aes67_ip_header {
+typedef struct __attribute__((__packed__)) _aes67_ip_header {
 #if AES67_VLAN_ID != 0
     tagged_ethernet_hdr_t eth;
 #else
@@ -133,7 +137,7 @@ typedef struct _aes67_ip_header {
 } aes67_ip_header_t;
 
 // UDP header structure
-typedef struct _aes67_udp_header {
+typedef struct __attribute__((__packed__)) _aes67_udp_header {
     aes67_ip_header_t ip;
     uint16_t src_port;
     uint16_t dest_port;
@@ -141,7 +145,9 @@ typedef struct _aes67_udp_header {
     uint16_t checksum;
 } aes67_udp_header_t;
 
-typedef struct _aes67_rtp_packet {
+// ETHERNET_MAX_PACKET_SIZE is 1520
+// with no VLAN header, max RTP payload is 1466
+typedef struct __attribute__((__packed__)) _aes67_rtp_packet {
     // native byte order length of the RTP packet including the RTP header
     // (but no other header lengths). On receipt, padding is removed from
     // this length.
@@ -153,68 +159,71 @@ typedef struct _aes67_rtp_packet {
     aes67_rtp_header_t rtp_header;
     uint8_t payload[RTP_MAX_PAYLOAD];
 } aes67_rtp_packet_t;
+#endif // !__XC__
 
+#define AES67_RTP_PACKET_STRUCT_SIZE (2 + ETHERNET_MAX_PACKET_SIZE)
+
+#ifndef __XC__
 // return a pointer to the start of the Ethernet header
-static inline uint8_t *alias
-aes67_rtp_packet_start_raw(REFERENCE_PARAM(aes67_rtp_packet_t, packet)) {
-#ifdef __XC__
-    unsafe { return (uint8_t * alias) &packet.header; }
-#else
-    return (uint8_t *)&packet->header;
-#endif
-}
+// cannot be inline because XC does not understand structure packing
 
 // return the length of the RTP packet including all packet headers
 static inline size_t
 aes67_rtp_packet_length_raw(REFERENCE_PARAM(const aes67_rtp_packet_t, packet)) {
-#ifdef __XC__
-    return ETH_HEADER_LENGTH + IP_HEADER_LENGTH + UDP_HEADER_LENGTH +
-           packet.rtp_length;
-#else
     return ETH_HEADER_LENGTH + IP_HEADER_LENGTH + UDP_HEADER_LENGTH +
            packet->rtp_length;
-#endif
 }
 
-// return a pointer to the start of the RTP header
-static inline const uint8_t *alias
-aes67_const_rtp_packet_start_rtp(REFERENCE_PARAM(const aes67_rtp_packet_t, packet)) {
-#ifdef __XC__
-    unsafe { return (const uint8_t * alias) &packet.rtp_header; }
-#else
-    return (const uint8_t *)&packet->rtp_header;
-#endif
-}
+uint8_t *alias
+aes67_rtp_packet_start_raw(REFERENCE_PARAM(aes67_rtp_packet_t, packet));
 
 // return a pointer to the start of the RTP header
-static inline uint8_t *alias
-aes67_rtp_packet_start_rtp(REFERENCE_PARAM(aes67_rtp_packet_t, packet)) {
-#ifdef __XC__
-    unsafe { return (uint8_t * alias) &packet.rtp_header; }
-#else
-    return (uint8_t *)&packet->rtp_header;
-#endif
-}
+// cannot be inline because XC does not understand structure packing
+const uint8_t *alias
+aes67_const_rtp_packet_start_rtp(REFERENCE_PARAM(const aes67_rtp_packet_t, packet));
+
+// return a pointer to the start of the RTP header
+// cannot be inline because XC does not understand structure packing
+uint8_t *alias
+aes67_rtp_packet_start_rtp(REFERENCE_PARAM(aes67_rtp_packet_t, packet));
 
 // return the length of the RTP packet alone
 static inline size_t
 aes67_rtp_packet_length_rtp(REFERENCE_PARAM(const aes67_rtp_packet_t, packet)) {
-#ifdef __XC__
-    return packet.rtp_length;
-#else
     return packet->rtp_length;
-#endif
 }
 
+// get destination IP address in host byte order
+uint32_t
+aes67_rtp_packet_get_dest_ip(REFERENCE_PARAM(const aes67_rtp_packet_t, packet));
+
 aes67_status_t aes67_rtp_parse(aes67_rtp_packet_t *unsafe packet);
-#if AES67_XMOS
+
 aes67_status_t aes67_rtp_recv(CLIENT_INTERFACE(xtcp_if, xtcp),
                               aes67_socket_t *unsafe socket,
                               aes67_rtp_packet_t *unsafe packet);
+#endif // !__XC__
+
+#ifdef AES67_XMOS
+uint8_t *alias
+aes67_rtp_packet_start_raw_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
+
+const uint8_t *alias
+aes67_const_rtp_packet_start_rtp_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
+
+uint8_t *alias
+aes67_rtp_packet_start_rtp_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE]);
+
+aes67_status_t aes67_rtp_recv_words(CLIENT_INTERFACE(xtcp_if, xtcp),
+                                    aes67_socket_t *unsafe socket,
+                                    uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+uint32_t
+aes67_rtp_packet_get_dest_ip_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+
 #else
 aes67_status_t aes67_rtp_recv(aes67_socket_t *socket,
                               aes67_rtp_packet_t *packet);
-#endif
+#endif // AES67_XMOS
 
 #define RTP_SEQ_MOD (1 << 16)
 #define RTP_MIN_SEQUENTIAL 2
@@ -381,10 +390,10 @@ aes67_status_t aes67_socket_send(CLIENT_INTERFACE(xtcp_if, xtcp),
                                  size_t len);
 
 #if AES67_XMOS
-aes67_status_t aes67_socket_recv_rtp(chanend xtcp, const aes67_socket_t *sock, aes67_rtp_packet_t *packet);
+# ifndef __XC__
 aes67_status_t aes67_socket_send_rtp(chanend xtcp, const aes67_socket_t *sock, const aes67_rtp_packet_t *packet);
+# endif
 #else
-aes67_status_t aes67_socket_recv_rtp(const aes67_socket_t *sock, aes67_rtp_packet_t *packet);
 aes67_status_t aes67_socket_send_rtp(const aes67_socket_t *sock, const aes67_rtp_packet_t *packet);
 #endif
 
@@ -397,20 +406,39 @@ aes67_status_t aes67_socket_send(const aes67_socket_t *sock, const uint8_t *buff
 void aes67_socket_close(aes67_socket_t *sock);
 #endif // AES67_XMOS
 
+#ifndef __XC__
 // Raw packet send/receive functions
 aes67_status_t aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
                                   streaming chanend c_eth_tx_hp,
                                   REFERENCE_PARAM(const aes67_socket_t, sock),
                                   REFERENCE_PARAM(aes67_rtp_packet_t, packet));
 
-aes67_status_t aes67_raw_recv_rtp(streaming unsafe chanend c_eth_rx_hp,
-                                  REFERENCE_PARAM(const aes67_socket_t, sock),
-                                  REFERENCE_PARAM(const ethernet_packet_info_t,
-                                                  packet_info),
-                                  REFERENCE_PARAM(aes67_rtp_packet_t, packet));
+aes67_status_t aes67_rtp_parse_raw(REFERENCE_PARAM(const aes67_socket_t, sock),
+                                   REFERENCE_PARAM(const ethernet_packet_info_t,
+                                                   packet_info),
+                                   REFERENCE_PARAM(aes67_rtp_packet_t, packet));
+#endif
 
-void ipv4_to_multicast_mac(xtcp_ipaddr_t ipv4_addr,
-                           uint8_t dest_mac[MACADDR_NUM_BYTES]);
+#ifdef AES67_XMOS
+aes67_status_t aes67_rtp_parse_raw_words(REFERENCE_PARAM(const aes67_socket_t, sock),
+                                         REFERENCE_PARAM(const ethernet_packet_info_t,
+                                                         packet_info),
+                                         uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);
+#endif
+
+#define LL_IP4_MULTICAST_ADDR_0 0x01
+#define LL_IP4_MULTICAST_ADDR_1 0x00
+#define LL_IP4_MULTICAST_ADDR_2 0x5e
+
+static inline void ipv4_to_multicast_mac(const xtcp_ipaddr_t ipv4_addr,
+                                         uint8_t dest_mac[MACADDR_NUM_BYTES]) {
+    dest_mac[0] = LL_IP4_MULTICAST_ADDR_0;
+    dest_mac[1] = LL_IP4_MULTICAST_ADDR_1;
+    dest_mac[2] = LL_IP4_MULTICAST_ADDR_2;
+    dest_mac[3] = ipv4_addr[1] & 0x7F;
+    dest_mac[4] = ipv4_addr[2];
+    dest_mac[5] = ipv4_addr[3];
+}
 
 // Platform-specific multicast address detection
 #if AES67_XMOS
@@ -435,4 +463,8 @@ static inline int _is_multicast(struct sockaddr_storage *addr) {
     }
     }
 }
+#endif
+
+#if AES67_XMOS
+void __aes67_rtp_send_hp_packet(streaming_chanend_t c_tx_hp, ARRAY_OF_SIZE(uint8_t, packet, n), size_t n);
 #endif

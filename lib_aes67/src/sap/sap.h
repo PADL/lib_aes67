@@ -168,6 +168,8 @@ int aes67_sdp_get_ptp_domain(REFERENCE_PARAM(const aes67_sdp_t, sdp));
 aes67_status_t aes67_sdp_get_ipv4_port(REFERENCE_PARAM(const aes67_sdp_t, sdp),
                                        REFERENCE_PARAM(uint16_t, __port));
 
+#ifndef __XC__
 // RTP packet utility function that needs SDP
 uint32_t aes67_rtp_packet_duration(REFERENCE_PARAM(const aes67_rtp_packet_t, packet),
                                    REFERENCE_PARAM(const aes67_sdp_t, sdp));
+#endif
