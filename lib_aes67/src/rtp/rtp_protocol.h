@@ -175,18 +175,24 @@ aes67_rtp_packet_length_raw(REFERENCE_PARAM(const aes67_rtp_packet_t, packet)) {
            packet->rtp_length;
 }
 
-uint8_t *alias
-aes67_rtp_packet_start_raw(REFERENCE_PARAM(aes67_rtp_packet_t, packet));
+static inline uint8_t *
+aes67_rtp_packet_start_raw(aes67_rtp_packet_t *packet) {
+    return (uint8_t *)&packet->header;
+}
 
 // return a pointer to the start of the RTP header
 // cannot be inline because XC does not understand structure packing
-const uint8_t *alias
-aes67_const_rtp_packet_start_rtp(REFERENCE_PARAM(const aes67_rtp_packet_t, packet));
+static inline const uint8_t *
+aes67_const_rtp_packet_start_rtp(const aes67_rtp_packet_t *packet) {
+    return (const uint8_t *)&packet->rtp_header;
+}
 
 // return a pointer to the start of the RTP header
 // cannot be inline because XC does not understand structure packing
-uint8_t *alias
-aes67_rtp_packet_start_rtp(REFERENCE_PARAM(aes67_rtp_packet_t, packet));
+static inline uint8_t *
+aes67_rtp_packet_start_rtp(aes67_rtp_packet_t *packet) {
+    return (uint8_t *)&packet->rtp_header;
+}
 
 // return the length of the RTP packet alone
 static inline size_t

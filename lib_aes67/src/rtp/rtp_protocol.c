@@ -145,28 +145,13 @@ aes67_status_t aes67_socket_send_rtp(const aes67_socket_t *sock, const aes67_rtp
 
 // this cannot be because XC does not support packed structures
 uint8_t *
-aes67_rtp_packet_start_raw(aes67_rtp_packet_t *packet) {
-    return (uint8_t *)&packet->header;
-}
-
-uint8_t *
 aes67_rtp_packet_start_raw_words(uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_rtp_packet_start_raw((aes67_rtp_packet_t *)words);
 }
 
 const uint8_t *
-aes67_const_rtp_packet_start_rtp(const aes67_rtp_packet_t *packet) {
-    return (const uint8_t *)&packet->rtp_header;
-}
-
-const uint8_t *
 aes67_const_rtp_packet_start_rtp_words(const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
     return aes67_const_rtp_packet_start_rtp((const aes67_rtp_packet_t *)words);
-}
-
-uint8_t *
-aes67_rtp_packet_start_rtp(aes67_rtp_packet_t *packet) {
-    return (uint8_t *)&packet->rtp_header;
 }
 
 uint8_t *
