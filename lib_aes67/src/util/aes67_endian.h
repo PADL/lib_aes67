@@ -130,14 +130,20 @@ hton80(u80_t x) {
     return ret;
 }
 
+#ifdef __XC__
+#define __PACKED__
+#else
+#define __PACKED__ __attribute__((__packed__))
+#endif
+
 /* Ethernet headers */
-typedef struct ethernet_hdr_t {
+typedef struct __PACKED__ ethernet_hdr_t {
     uint8_t dest_addr[MACADDR_NUM_BYTES];
     uint8_t src_addr[MACADDR_NUM_BYTES];
     n16_t ethertype;
 } ethernet_hdr_t;
 
-typedef struct tagged_ethernet_hdr_t {
+typedef struct __PACKED__ tagged_ethernet_hdr_t {
     uint8_t dest_addr[MACADDR_NUM_BYTES];
     uint8_t src_addr[MACADDR_NUM_BYTES];
     n32_t qtag;
