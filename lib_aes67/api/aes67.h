@@ -84,6 +84,8 @@ typedef struct _aes67_media_clock_pid_coefficients {
     uint16_t d_denominator;
 } aes67_media_clock_pid_coefficients_t;
 
+extern aes67_media_clock_pid_coefficients_t cs2100_pid_coefficients;
+extern aes67_media_clock_pid_coefficients_t cs2300_pid_coefficients;
 extern aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients;
 
 #define AES67_TIME_SOURCE_INFO_PTP_LOCKED_FLAG 0x01

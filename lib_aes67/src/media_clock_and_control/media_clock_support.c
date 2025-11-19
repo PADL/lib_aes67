@@ -101,6 +101,24 @@ void aes67_init_media_clock_recovery(NULLABLE_RESOURCE(chanend, ptp_svr),
     clock_info->ptp1 = local_timestamp_to_ptp_mod32(clk_time, &timeInfo);
 }
 
+aes67_media_clock_pid_coefficients_t cs2100_pid_coefficients = {
+    .p_numerator = 80,    // Original CS2100 P gain: 80/11 ≈ 7.27
+    .p_denominator = 11,
+    .i_numerator = 1,     // Original CS2100 I gain: 1/5 = 0.2
+    .i_denominator = 5,
+    .d_numerator = 0,     // Original CS2100 had no D term
+    .d_denominator = 1
+};
+
+aes67_media_clock_pid_coefficients_t cs2300_pid_coefficients = {
+    .p_numerator = 32,    // Original CS2300 P gain: 32/1 = 32
+    .p_denominator = 1,
+    .i_numerator = 1,     // Original CS2300 I gain: 1/4 = 0.25
+    .i_denominator = 4,
+    .d_numerator = 0,     // Original CS2300 had no D term
+    .d_denominator = 1
+};
+
 aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
     .p_numerator = 20,
     .p_denominator = 11,
