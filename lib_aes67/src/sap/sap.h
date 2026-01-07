@@ -10,8 +10,8 @@
 #include "aes67_internal.h"
 
 #if AES67_XMOS
-#define NI_MAXHOST 256
-#define NI_MAXSERV 32
+#define NI_MAXHOST 128
+#define NI_MAXSERV 8
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -29,7 +29,11 @@
 
 #define AES67_SDP_MIME_TYPE "application/sdp"
 #define AES67_SDP_MIME_TYPE_LEN (sizeof("application/sdp") - 1)
+#ifdef AES67_XMOS
+#define AES67_SDP_MAX_LEN (1024)
+#else
 #define AES67_SDP_MAX_LEN (2048)
+#endif
 
 #define AES67_SAP_MAX_HEADER (36)
 #define AES67_SAP_MAX_LEN (AES67_SAP_MAX_HEADER + AES67_SDP_MAX_LEN)
