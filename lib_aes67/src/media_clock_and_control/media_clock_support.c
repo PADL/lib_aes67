@@ -119,15 +119,6 @@ aes67_media_clock_pid_coefficients_t cs2300_pid_coefficients = {
     .d_denominator = 1
 };
 
-aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
-    .p_numerator = 20,
-    .p_denominator = 11,
-    .i_numerator = 1,
-    .i_denominator = 10,
-    .d_numerator = 2,
-    .d_denominator = 10
-};
-
 #define MAX_ERROR_TOLERANCE 100
 
 // Enhanced debug levels for PID tuning
