@@ -118,7 +118,7 @@ static inline int popcount(uint32_t x) {
 #define DSCP_RTP DSCP_AF41
 #endif // AES67_DANTE_DSCP_COMPAT
 
-typedef char aes67_session_name_t[256];
+typedef char aes67_session_name_t[32];
 
 static inline int is_valid_receiver_id(int32_t id) {
     return id >= 0 && id < NUM_AES67_RECEIVERS;

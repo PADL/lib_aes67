@@ -10,7 +10,7 @@
 #include "aes67_internal.h"
 
 #if AES67_XMOS
-#define NI_MAXHOST 128
+#define NI_MAXHOST 32
 #define NI_MAXSERV 8
 #else
 #include <sys/socket.h>
@@ -85,10 +85,16 @@ typedef struct _aes67_sdp {
     char port[NI_MAXSERV]; // m=
 #endif
 
-    char session_id[256];              // o=
-    char session_origin[256];          // o=
-    aes67_session_name_t session_name; // s=
-    char information[256];             // i=
+#if AES67_XMOS
+#define AES67_MAX_SDP_STRING  32
+#else
+#define AES67_MAX_SDP_STRING  256
+#endif
+
+    char session_id[AES67_MAX_SDP_STRING];      // o=
+    char session_origin[AES67_MAX_SDP_STRING];  // o=
+    aes67_session_name_t session_name;          // s=
+    char information[AES67_MAX_SDP_STRING];     // i=
 
     int payload_type;       // m=
     int encoding;           // a=rtpmap
