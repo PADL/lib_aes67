@@ -159,7 +159,7 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
     if (fifo->state == AES67_FIFO_DISABLED)
         return;
 
-    fifo->ptp_ts = ptp_time_ns ? ptp_time_ns : 0;
+    fifo->ptp_ts = ptp_time_ns ? ptp_time_ns : 1;
 
     for (size_t i = 0; i < num_frames; i++) {
         switch (encoding) {

@@ -53,8 +53,8 @@ static void media_clock_to_ptp_time_ns(const aes67_stream_info_t *stream_info,
     *ptpTimeNS =
         (media_clock * NANOSECONDS_PER_SECOND) / stream_info->sample_rate;
 
-    // offset by packet time to create a PTP presentation time
-    ptpTimeNS += stream_info->packet_time_us * 1000 * 2;
+    // offset by twice packet time to create a PTP presentation time
+    *ptpTimeNS += stream_info->packet_time_us * 1000 * 2;
 }
 
 static void open_receiver_stream(aes67_stream_info_t *stream_info,
