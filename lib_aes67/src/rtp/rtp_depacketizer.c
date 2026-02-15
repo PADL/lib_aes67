@@ -118,11 +118,6 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     uint64_t ptp_time_ns;
     media_clock_to_ptp_time_ns(stream_info, media_clock, &ptp_time_ns);
 
-    // Set presentation timestamp on first channel for timing control
-    if (frame_count && stream_info->channel_count)
-        aes67_audio_fifo_set_presentation_time(&receiver->fifos[0],
-                                               (uint32_t)ptp_time_ns);
-
     // samples are laid out Frame0[C0C1...CN] ... FrameN[C0C1...CN]
     // payload_ptr points to the first sample for a channel
     // sample_size is used by aes67_audio_fifo_push_samples() to iterate frames
@@ -131,7 +126,8 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     for (size_t ch = 0; ch < stream_info->channel_count; ch++) {
         aes67_audio_fifo_push_samples(
             &receiver->fifos[ch], payload_ptr, stream_info->sample_size,
-            stream_info->channel_count, frame_count, stream_info->encoding);
+            stream_info->channel_count, frame_count, stream_info->encoding,
+            (uint32_t)ptp_time_ns);
         payload_ptr += stream_info->sample_size;
     }
 

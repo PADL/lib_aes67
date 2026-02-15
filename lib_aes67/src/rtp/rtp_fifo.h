@@ -50,8 +50,6 @@ uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
                                       int *valid);
 
 // Timestamp and clock recovery
-void aes67_audio_fifo_set_presentation_time(aes67_audio_fifo_t *fifo,
-                                            uint32_t ptp_time_ns);
 void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
                                chanend buf_ctl,
                                int *notified_buf_ctl);
@@ -69,4 +67,5 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t sample_size,
                                    size_t stride,
                                    size_t num_samples,
-                                   uint32_t encoding);
+                                   uint32_t encoding,
+                                   uint32_t ptp_timestamp_ns);

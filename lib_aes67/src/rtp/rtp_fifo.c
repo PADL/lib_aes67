@@ -91,15 +91,6 @@ uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
     return sample;
 }
 
-// Set presentation timestamp for packet timing
-void aes67_audio_fifo_set_presentation_time(aes67_audio_fifo_t *fifo,
-                                            uint32_t ptp_time_ns) {
-    if (ptp_time_ns == 0)
-        ptp_time_ns = 1;
-
-    fifo->ptp_ts = ptp_time_ns;
-}
-
 // Maintain FIFO state and notify clock recovery
 void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
                                chanend buf_ctl,
@@ -159,13 +150,16 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t sample_size,
                                    size_t stride, // effectively channel count
                                    size_t num_frames,
-                                   uint32_t encoding) {
+                                   uint32_t encoding,
+                                   uint32_t ptp_time_ns) {
     volatile uint32_t *wrptr = fifo->wrptr;
     uint32_t sample;
     size_t sample_count = 0;
 
     if (fifo->state == AES67_FIFO_DISABLED)
         return;
+
+    fifo->ptp_ts = ptp_time_ns ? ptp_time_ns : 0;
 
     for (size_t i = 0; i < num_frames; i++) {
         switch (encoding) {
