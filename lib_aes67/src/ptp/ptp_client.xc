@@ -18,22 +18,11 @@ void ptp_request_time_info(chanend c) {
 }
 
 void ptp_get_requested_time_info(chanend c, ptp_time_info &info) {
-    timer tmr;
-    signed thiscore_now, othercore_now;
-    unsigned server_tile_id;
-
     slave {
-        tmr :> thiscore_now;
-        c :> othercore_now;
         c :> info.local_ts;
         c :> info.ptp_ts;
         c :> info.ptp_adjust;
         c :> info.inv_ptp_adjust;
-        c :> server_tile_id;
-    }
-    if (server_tile_id != get_local_tile_id()) {
-        // 3 = protocol instruction cycle difference
-        info.local_ts = info.local_ts - (othercore_now - thiscore_now - 3);
     }
 }
 
@@ -47,24 +36,13 @@ void ptp_request_time_info_mod64(chanend c) {
 }
 
 void ptp_get_requested_time_info_mod64(chanend c, ptp_time_info_mod64 &info) {
-    timer tmr;
-    signed thiscore_now, othercore_now;
-    unsigned server_tile_id;
-
     slave {
         c <: 0;
-        tmr :> thiscore_now;
-        c :> othercore_now;
         c :> info.local_ts;
         c :> info.ptp_ts_hi;
         c :> info.ptp_ts_lo;
         c :> info.ptp_adjust;
         c :> info.inv_ptp_adjust;
-        c :> server_tile_id;
-    }
-    if (server_tile_id != get_local_tile_id()) {
-        // 3 = protocol instruction cycle difference
-        info.local_ts = info.local_ts - (othercore_now - thiscore_now - 3);
     }
 }
 

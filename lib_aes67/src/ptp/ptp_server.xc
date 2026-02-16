@@ -83,16 +83,11 @@ void ptp_l3_handle_event(client interface xtcp_if i_xtcp,
 }
 
 static void ptp_give_requested_time_info(chanend c, timer ptp_timer) {
-    int thiscore_now;
-    uint32_t tile_id = get_local_tile_id();
     master {
-      ptp_timer :> thiscore_now;
-      c <: thiscore_now;
       c <: ptp_reference_local_ts;
       c <: ptp_reference_ptp_ts;
       c <: g_ptp_adjust;
       c <: g_inv_ptp_adjust;
-      c <: tile_id;
     }
 }
 
@@ -110,8 +105,6 @@ void ptp_get_local_time_info_mod64(ptp_time_info_mod64 &info) {
 #pragma select handler
 void ptp_process_client_request(chanend c, timer ptp_timer) {
     uint8_t cmd;
-    uint32_t thiscore_now;
-    uint32_t tile_id = get_local_tile_id();
 
     cmd = inuchar(c);
     (void)inuchar(c);
@@ -126,14 +119,11 @@ void ptp_process_client_request(chanend c, timer ptp_timer) {
       ptp_get_reference_ptp_ts_mod_64(hi, lo);
       master {
         c :> int;
-        ptp_timer :> thiscore_now;
-        c <: thiscore_now;
         c <: ptp_reference_local_ts;
         c <: hi;
         c <: lo;
         c <: g_ptp_adjust;
         c <: g_inv_ptp_adjust;
-        c <: tile_id;
       }
       break;
     }
