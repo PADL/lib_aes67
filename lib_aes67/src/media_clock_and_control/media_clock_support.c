@@ -195,11 +195,7 @@ uint32_t aes67_update_media_clock(
         } else {
             clock_info->ierror += err;
             // D term: rate of change of error
-            if (pid_coefficients->d_numerator != 0) {
-                derror = perror - clock_info->prev_perror;
-            } else {
-                derror = 0;
-            }
+            derror = pid_coefficients->d_numerator ? (perror - clock_info->prev_perror) : 0;
         }
         ierror = clock_info->ierror;
 
