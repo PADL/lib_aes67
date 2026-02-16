@@ -57,8 +57,7 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
 // Buffer control message handling
 void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
                                             aes67_audio_fifo_t *unsafe fifo,
-                                            int *unsafe buf_ctl_notified,
-                                            unsigned int tmr);
+                                            int *unsafe buf_ctl_notified);
 aes67_fifo_state_t aes67_audio_fifo_get_state(aes67_audio_fifo_t *fifo);
 
 // Multi-bit sample support

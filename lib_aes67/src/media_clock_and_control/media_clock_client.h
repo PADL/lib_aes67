@@ -37,5 +37,4 @@ void aes67_send_buf_ctl_info(chanend buf_ctl,
                              uint32_t ptp_ts,
                              uint32_t local_ts,
                              uintptr_t rdptr,
-                             uintptr_t wrptr,
-                             timer tmr);
+                             uintptr_t wrptr);

@@ -104,12 +104,10 @@ static unsafe void aes67_poll_stream_info_changed(client xtcp_if i_xtcp, uint32_
 
 static void aes67_audio_fifo_handle_buf_ctl(chanend buf_ctl,
                                             aes67_audio_fifo_t *fifo,
-                                            int *buf_ctl_notified,
-                                            timer tmr) {
+                                            int *buf_ctl_notified) {
     // FIXME: why is this cast necessary to avoid linking errors?
     unsafe {
-        aes67_audio_fifo_handle_buf_ctl_unsafe((unsigned int)buf_ctl, fifo,
-                                               buf_ctl_notified, (unsigned int)tmr);
+        aes67_audio_fifo_handle_buf_ctl_unsafe((unsigned int)buf_ctl, fifo, buf_ctl_notified);
     }
 }
 
@@ -220,7 +218,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
                     aes67_audio_fifo_t *fifo =
                         &receiver.fifos[fifo_index % AES67_MAX_CHANNELS_PER_RECEIVER];
 
-                    aes67_audio_fifo_handle_buf_ctl(buf_ctl, fifo, &receiver.buf_ctl_notified, t);
+                    aes67_audio_fifo_handle_buf_ctl(buf_ctl, fifo, &receiver.buf_ctl_notified);
                     break;
 
                 case t when timerafter(time) :> void:

@@ -200,8 +200,7 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
 // Handle buffer control messages
 void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
                                             aes67_audio_fifo_t *fifo,
-                                            int *buf_ctl_notified,
-                                            unsigned int tmr) {
+                                            int *buf_ctl_notified) {
     int cmd = aes67_get_buf_ctl_cmd(buf_ctl);
 
     switch (cmd) {
@@ -209,7 +208,7 @@ void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
         aes67_send_buf_ctl_info(buf_ctl, fifo->state == AES67_FIFO_LOCKED,
                                 fifo->ptp_ts, 0,
                                 fifo->dptr - START_OF_FIFO(fifo),
-                                fifo->wrptr - START_OF_FIFO(fifo), tmr);
+                                fifo->wrptr - START_OF_FIFO(fifo));
         fifo->ptp_ts = 0;
         fifo->marker = NULL;
         break;
