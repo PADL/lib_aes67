@@ -206,12 +206,16 @@ uint32_t aes67_update_media_clock(
 #if DEBUG_PID_TUNING
         if (clock_info->prev_perror != perror || abs((int32_t)err) > 1000) {
             debug_printf(
-                "PID: P=%d/%d I=%d/%d D=%d/%d perror=%d ierror=%d derror=%d "
-                "diff_local=%d wordlen=%x\n",
+                "PID: P=%d/%d I=%d/%d D=%d/%d perror=%x.%x ierror=%x.%x derror=%x.%x "
+                "diff_local=%x.%x wordlen=%x.%x\n",
                 pid_coefficients->p_numerator, pid_coefficients->p_denominator,
                 pid_coefficients->i_numerator, pid_coefficients->i_denominator,
                 pid_coefficients->d_numerator, pid_coefficients->d_denominator,
-                perror, ierror, derror, diff_local, clock_info->wordlen);
+                (perror >> 32) & 0xffffffff, perror & 0xffffffff,
+                (ierror >> 32) & 0xffffffff, ierror & 0xffffffff,
+                (derror >> 32) & 0xffffffff, derror & 0xffffffff,
+                (diff_local >> 32) & 0xffffffff, diff_local & 0xffffffff,
+                (clock_info->wordlen >> 32) & 0xffffffff, clock_info->wordlen & 0xffffffff);
         }
 #endif
 
