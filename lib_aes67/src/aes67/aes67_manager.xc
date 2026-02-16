@@ -346,14 +346,19 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
         media_control <: id;
     } else if (!sdp_is_subscribed(id)) {
         debug_printf("subscribing to stream %s channel count %d sample "
-                     "size %d sample rate %d encoding %s\n",
+                     "size %d sample rate %d encoding %s offset %x:%x\n",
                      sdp.session_name, sdp.channel_count, sdp.sample_size,
-                     sdp.sample_rate, aes67_encoding_name(sdp.encoding));
+                     sdp.sample_rate, aes67_encoding_name(sdp.encoding),
+                     (uint32_t)((sdp.clock_offset >> 32) & 0xffffffff),
+                     (uint32_t)((sdp.clock_offset >>  0) & 0xffffffff));
         sdp_subscribe(id, sdp, flags, sap_timer_events);
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
         media_control <: stream_info;
     } else if (sdp_equal(sdp_subscriptions[id], sdp) == 0) {
-        debug_printf("resubscribing to changed stream %s\n", sdp.session_name);
+        debug_printf("resubscribing to changed stream %s offset %x:%x\n",
+                     sdp.session_name,
+                     (uint32_t)((sdp.clock_offset >> 32) & 0xffffffff),
+                     (uint32_t)((sdp.clock_offset >>  0) & 0xffffffff));
         sdp_subscribe(id, sdp, flags, sap_timer_events);
         media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_RESUBSCRIBE;
         media_control <: stream_info;
