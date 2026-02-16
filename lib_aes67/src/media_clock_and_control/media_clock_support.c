@@ -60,7 +60,7 @@ static clock_info_t ptp_clock_info;
 /**
  * \brief Converts the internal 64 bit wordlen into an external 32 bit wordlen
  */
-static uint32_t local_wordlen_to_external_wordlen(uint64_t w) {
+static inline uint32_t local_wordlen_to_external_wordlen(uint64_t w) {
     return (w >> (WORDLEN_FRACTIONAL_BITS - WC_FRACTIONAL_BITS));
 }
 
