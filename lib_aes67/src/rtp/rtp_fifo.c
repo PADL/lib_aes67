@@ -69,21 +69,14 @@ uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
     sample = *dptr;
 
     // Check if this is the marked sample for timestamp correlation
-    if (dptr == fifo->marker) {
-        // Marker reached - could be used for timing if needed
-    }
+    if (dptr == fifo->marker && fifo->local_ts == 0)
+        fifo->local_ts = timestamp ? timestamp : 1;
 
     dptr++;
-    if (dptr == END_OF_FIFO(fifo)) {
+    if (dptr == END_OF_FIFO(fifo))
         dptr = START_OF_FIFO(fifo);
-    }
 
     fifo->dptr = dptr;
-
-    // Set local timestamp when sample is pulled for timing correlation
-    if (timestamp == 0)
-        timestamp = 1;
-    fifo->local_ts = timestamp;
 
     if (fifo->zero_flag)
         sample = 0;
