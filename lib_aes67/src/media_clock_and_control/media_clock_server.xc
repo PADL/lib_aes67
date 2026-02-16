@@ -49,7 +49,6 @@ static int last_fill;
 #endif
 
 static void manage_buffer(buf_info_t &b,
-                          chanend ?ptp_svr,
                           chanend buf_ctl,
                           int index,
                           timer tmr) {
@@ -244,13 +243,11 @@ static void do_media_clock_output(aes67_media_clock_t &clk,
     p @ clk.wordTime <: clk.bit;
 }
 
-static void update_media_clocks(chanend ?ptp_svr,
-                                int clk_time,
+static void update_media_clocks(int clk_time,
                                 const aes67_media_clock_pid_coefficients_t &pid_coefficients) {
     if (ptp_media_clock.info.active) {
         ptp_media_clock.wordLength =
-            aes67_update_media_clock(ptp_svr, ptp_media_clock, clk_time,
-                                     CLOCK_RECOVERY_PERIOD, pid_coefficients);
+            aes67_update_media_clock(ptp_media_clock, clk_time, CLOCK_RECOVERY_PERIOD, pid_coefficients);
 
         update_media_clock_divide(ptp_media_clock);
     }
@@ -263,7 +260,6 @@ aes67_media_clock_info_t aes67_get_clock_info(void) {
 }
 
 static void aes67_set_clock_info(const aes67_media_clock_info_t info,
-                                 chanend ?ptp_svr,
                                  int clk_time) {
     int prev_active = ptp_media_clock.info.active;
     ptp_media_clock.info = info;
@@ -272,21 +268,17 @@ static void aes67_set_clock_info(const aes67_media_clock_info_t info,
                  info.active);
 
     if (!prev_active && info.active)
-        aes67_init_media_clock_recovery(ptp_svr,
-                                        clk_time - CLOCK_RECOVERY_PERIOD,
+        aes67_init_media_clock_recovery(clk_time - CLOCK_RECOVERY_PERIOD,
                                         ptp_media_clock.info.rate);
 }
 
-void aes67_io_task(chanend ?ptp_svr,
-                   chanend buf_ctl[num_buf_ctl],
+void aes67_io_task(chanend buf_ctl[num_buf_ctl],
                    uint32_t num_buf_ctl,
                    out buffered port:32 p_fs,
                    REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t, pid_coefficients),
                    chanend media_control,
                    client interface ethernet_cfg_if i_eth_cfg,
                    client xtcp_if i_xtcp,
-                   chanend c_ptp[num_ptp],
-                   uint32_t num_ptp,
                    uint32_t flags) {
     timer tmr;
     int ptp_timeout;
@@ -303,7 +295,7 @@ void aes67_io_task(chanend ?ptp_svr,
     else
         ptp_server_type = PTP_GRANDMASTER_CAPABLE;
 
-    ptp_server_init(i_eth_cfg, null, i_xtcp, c_ptp[0], ptp_server_type, tmr, ptp_timeout);
+    ptp_server_init(i_eth_cfg, null, i_xtcp, ptp_server_type, tmr, ptp_timeout);
 
 #if (AES67_NUM_MEDIA_OUTPUTS != 0)
     aes67_media_clock_init_buffers();
@@ -347,10 +339,6 @@ void aes67_io_task(chanend ?ptp_svr,
                 ptp_l3_handle_event(i_xtcp, event, id);
                 break;
 
-            case (uint32_t i = 0; i < num_ptp; i++)
-                ptp_process_client_request(c_ptp[i], tmr):
-                break;
-
             case tmr when timerafter(ptp_timeout) :> void:
                 if (last_ptp_sync_lock != sync_lock) {
                     aes67_media_clock_info_t info = ptp_media_clock.info;
@@ -371,12 +359,12 @@ void aes67_io_task(chanend ?ptp_svr,
                         }
                     }
 
-                    aes67_set_clock_info(info, ptp_svr, clk_time);
+                    aes67_set_clock_info(info, clk_time);
                     last_ptp_sync_lock = sync_lock;
                 }
 
                 if (timeafter(ptp_timeout, clk_time)) {
-                    update_media_clocks(ptp_svr, clk_time, pid_coefficients);
+                    update_media_clocks(clk_time, pid_coefficients);
                     clk_time += CLOCK_RECOVERY_PERIOD;
                 }
 
@@ -397,8 +385,7 @@ void aes67_io_task(chanend ?ptp_svr,
 
                 switch (buf_ctl_cmd) {
                 case BUF_CTL_NOTIFY_STREAM_INFO:
-                    manage_buffer(buf_info[buf_index], ptp_svr, buf_ctl[i],
-                                  buf_index, tmr);
+                    manage_buffer(buf_info[buf_index], buf_ctl[i], buf_index, tmr);
                     break;
 
                 default:

@@ -69,29 +69,6 @@ enum ptp_server_type {
     PTP_SLAVE_ONLY           /*!< The port is capable of PTP Slave role only */
 };
 
-#ifdef __XC__
-/** This function runs the PTP server. It takes one logical core and runs
-    indefinitely.
-
-    \param i_eth_rx  a receive interface connected to the Ethernet server
-    \param i_eth_tx  a transmit interface connected to the Ethernet server
-    \param i_eth_cfg a client configuration interface to the Ethernet server
-    \param ptp_clients  an array of channel ends to connect to clients
-                        of the PTP server
-    \param num_clients  The number of clients attached
-    \param server_type The type of the server (``PTP_GRANDMASTER_CAPABLE``
-                       or ``PTP_SLAVE_ONLY``)
- **/
-
-void ptp_server(client interface ethernet_rx_if ?i_eth_rx,
-                client interface ethernet_tx_if ?i_eth_tx,
-                client interface ethernet_cfg_if i_eth_cfg,
-                client interface xtcp_if ?i_xtcp,
-                chanend ptp_clients[],
-                int num_clients,
-                enum ptp_server_type server_type);
-#endif
-
 /** Retrieve time information from the PTP server
  *
  *  This function gets an up-to-date structure of type `ptp_time_info` to use

@@ -169,16 +169,13 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
 #define AES67_FLAG_PTP_SLAVE_ONLY 0x01
 #define AES67_FLAG_RTP_ETH_HP 0x02
 
-void aes67_io_task(chanend ?ptp_svr,
-                   chanend buf_ctl[num_buf_ctl],
+void aes67_io_task(chanend buf_ctl[num_buf_ctl],
                    uint32_t num_buf_ctl,
                    out buffered port:32 p_fs,
                    REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t, pid_coefficients),
                    chanend media_control,
                    client interface ethernet_cfg_if i_eth_cfg,
                    client xtcp_if i_xtcp,
-                   chanend c_ptp[num_ptp],
-                   uint32_t num_ptp,
                    uint32_t flags);
 
 // depacketizer

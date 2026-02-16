@@ -107,7 +107,6 @@ void ptp_get_port_info(chanend ptp_server,
 void ptp_server_init(CLIENT_INTERFACE(ethernet_cfg_if, i_eth_cfg),
                      CLIENT_INTERFACE(ethernet_rx_if ?, i_eth_rx),
                      CLIENT_INTERFACE(xtcp_if ?, i_xtcp),
-                     chanend c,
                      enum ptp_server_type server_type,
                      timer ptp_timer,
                      REFERENCE_PARAM(int, ptp_timeout));
@@ -125,8 +124,7 @@ void ptp_l3_handle_event(client interface xtcp_if i_xtcp,
 void ptp_init(client interface ethernet_cfg_if,
               client interface ethernet_rx_if?,
               client interface xtcp_if?,
-              enum ptp_server_type stype,
-              chanend c);
+              enum ptp_server_type stype);
 void ptp_reset(int port_num);
 void ptp_recv(
     client interface ethernet_tx_if ?i_eth_rx,
@@ -154,8 +152,7 @@ ptp_port_role_t ptp_current_state(void);
 void ptp_process_client_request(chanend c, timer ptp_timer);
 #define PTP_PERIODIC_TIME (10000) // 0.tfp1 milliseconds
 
-#define do_ptp_server(i_eth_rx, i_eth_tx, i_xtcp, client, num_clients,         \
-                      ptp_timer, ptp_timeout)                                  \
+#define do_ptp_server(i_eth_rx, i_eth_tx, i_xtcp, ptp_timer, ptp_timeout)      \
     case !isnull(i_eth_rx) => i_eth_rx.packet_ready():                         \
         ptp_l2_recv_and_process_packet(i_eth_rx, i_eth_tx);                    \
         break;                                                                 \
@@ -165,9 +162,6 @@ void ptp_process_client_request(chanend c, timer ptp_timer);
                                                                                \
         event = i_xtcp.get_event(id);                                          \
         ptp_l3_handle_event(i_xtcp, event, id);                                \
-        break;                                                                 \
-    case (int i = 0; i < num_clients; i++)                                     \
-        ptp_process_client_request(client[i], ptp_timer):                      \
         break;                                                                 \
     case ptp_timer when timerafter(ptp_timeout) :> void:                       \
         ptp_periodic(i_eth_tx, i_xtcp, ptp_timeout);                           \

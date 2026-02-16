@@ -81,7 +81,6 @@ static gPTPAnnounceMessage best_announce_msg;
 static uint64_t pdelay_epoch_timer;
 static uint32_t prev_pdelay_local_ts;
 
-static int tile_timer_offset;
 static int periodic_counter[PTP_NUM_PORTS];
 
 #define DEBUG_PRINT 0
@@ -680,7 +679,6 @@ static void ptp_tx_timed_l2(client interface ethernet_tx_if i_eth,
                             int port_num) {
     len = len < 64 ? 64 : len;
     ts = i_eth.send_timed_packet((char *)buf, len, port_num);
-    ts = ts - tile_timer_offset;
 }
 
 static void ptp_tx_timed_l3(client interface xtcp_if i_xtcp,
@@ -690,7 +688,7 @@ static void ptp_tx_timed_l3(client interface xtcp_if i_xtcp,
     uint32_t timestamp;
 
     i_xtcp.send_timed(g_ptp_l3_event_tx, (char *)buf, len, timestamp);
-    ts = (uint32_t)timestamp - tile_timer_offset;
+    ts = (uint32_t)timestamp;
 }
 
 static const xtcp_ipaddr_t ptp_mcast_group = PTP_1588_DEST_ADDR;
@@ -1512,8 +1510,6 @@ void ptp_recv(client interface ethernet_tx_if ?i_eth,
         return;
     }
 
-    local_ingress_ts = local_ingress_ts - tile_timer_offset;
-
     if (GET_PTP_TRANSPORT_SPECIFIC(msg) != !is_l3)
         return;
 
@@ -1792,22 +1788,13 @@ static inline uint32_t get_tile_id_from_chanend(chanend c) {
 void ptp_init(client interface ethernet_cfg_if i_eth_cfg,
               client interface ethernet_rx_if ?i_eth_rx,
               client interface xtcp_if ?i_xtcp,
-              enum ptp_server_type stype,
-              chanend c) {
+              enum ptp_server_type stype) {
     unsigned server_tile_id;
     unsigned other_tile_now;
     uint32_t this_tile_now;
 
     i_eth_cfg.get_tile_id_and_timer_value(server_tile_id, other_tile_now);
     this_tile_now = get_local_time();
-
-    if (server_tile_id != get_tile_id_from_chanend(c)) {
-        tile_timer_offset =
-            other_tile_now - this_tile_now -
-            3; // 3 is an estimate of the channel + instruction latency
-    } else {
-        tile_timer_offset = 0;
-    }
 
     if (stype == PTP_GRANDMASTER_CAPABLE) {
         ptp_priority1 = PTP_DEFAULT_GM_CAPABLE_PRIORITY1;

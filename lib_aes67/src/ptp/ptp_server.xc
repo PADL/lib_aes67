@@ -15,15 +15,14 @@
 void receive_ptp_cmd(chanend c, uint32_t &cmd) { cmd = inuchar(c); }
 
 void ptp_server_init(client interface ethernet_cfg_if i_eth_cfg,
-                       client interface ethernet_rx_if ?i_eth_rx,
-                       client interface xtcp_if ?i_xtcp,
-                       chanend c,
-                       enum ptp_server_type server_type,
-                       timer ptp_timer,
-                       int &ptp_timeout) {
+                     client interface ethernet_rx_if ?i_eth_rx,
+                     client interface xtcp_if ?i_xtcp,
+                     enum ptp_server_type server_type,
+                     timer ptp_timer,
+                     int &ptp_timeout) {
     ptp_timer :> ptp_timeout;
 
-    ptp_init(i_eth_cfg, i_eth_rx, i_xtcp, server_type, c);
+    ptp_init(i_eth_cfg, i_eth_rx, i_xtcp, server_type);
 }
 
 void ptp_l2_recv_and_process_packet(client interface ethernet_rx_if i_eth_rx,
@@ -177,26 +176,5 @@ void ptp_process_client_request(chanend c, timer ptp_timer) {
       }
       break;
     }
-    }
-}
-
-void ptp_server(client interface ethernet_rx_if ?i_eth_rx,
-                  client interface ethernet_tx_if ?i_eth_tx,
-                  client interface ethernet_cfg_if i_eth_cfg,
-                  client interface xtcp_if ?i_xtcp,
-                  chanend ptp_clients[],
-                  int num_clients,
-                  enum ptp_server_type server_type) {
-    timer ptp_timer;
-    int ptp_timeout;
-
-    ptp_server_init(i_eth_cfg, i_eth_rx, i_xtcp, ptp_clients[0], server_type,
-                    ptp_timer, ptp_timeout);
-
-    while (1) {
-      select {
-          do_ptp_server(i_eth_rx, i_eth_tx, i_xtcp, ptp_clients, num_clients,
-                        ptp_timer, ptp_timeout);
-      }
     }
 }

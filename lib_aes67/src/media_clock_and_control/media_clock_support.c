@@ -78,9 +78,7 @@ static uint64_t calculate_wordlen(uint32_t sample_rate) {
     }
 }
 
-void aes67_init_media_clock_recovery(NULLABLE_RESOURCE(chanend, ptp_svr),
-                                     uint32_t clk_time,
-                                     uint32_t rate) {
+void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate) {
     clock_info_t *clock_info = &ptp_clock_info;
     ptp_time_info_mod64 timeInfo;
 
@@ -136,7 +134,6 @@ aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
 #endif
 
 uint32_t aes67_update_media_clock(
-    NULLABLE_RESOURCE(chanend, ptp_svr),
     REFERENCE_PARAM(const aes67_media_clock_t, mclock),
     uint32_t t2,
     int32_t period0,

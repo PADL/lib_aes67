@@ -47,12 +47,9 @@ int aes67_media_clock_get_buf_info(uintptr_t fifo);
 // The number of ticks between period clock recovery checks
 #define CLOCK_RECOVERY_PERIOD (1 << 21)
 
-void aes67_init_media_clock_recovery(NULLABLE_RESOURCE(chanend, ptp_svr),
-                                     uint32_t clk_time,
-                                     uint32_t rate);
+void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate);
 
 uint32_t aes67_update_media_clock(
-    NULLABLE_RESOURCE(chanend, ptp_svr),
     REFERENCE_PARAM(const aes67_media_clock_t, mclock),
     uint32_t t2,
     int32_t period,
