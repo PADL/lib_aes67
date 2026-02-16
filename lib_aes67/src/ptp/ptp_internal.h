@@ -111,6 +111,8 @@ void ptp_server_init(CLIENT_INTERFACE(ethernet_cfg_if, i_eth_cfg),
                      timer ptp_timer,
                      REFERENCE_PARAM(int, ptp_timeout));
 
+void ptp_get_reference_ptp_ts_mod_64(REFERENCE_PARAM(uint32_t, hi), REFERENCE_PARAM(uint32_t, lo));
+
 #ifdef __XC__
 void ptp_l2_recv_and_process_packet(client interface ethernet_rx_if i_eth_rx,
                                     client interface ethernet_tx_if i_eth_tx);
@@ -137,7 +139,6 @@ void ptp_periodic(
     client interface ethernet_tx_if ?i_tx_if,
     client interface xtcp_if ?i_xtcp,
     uint32_t);
-void ptp_get_reference_ptp_ts_mod_64(uint32_t &hi, uint32_t &lo);
 void ptp_current_grandmaster(uint8_t grandmaster[8]);
 void ptp_get_path_sequence(uint16_t port_num,
                            uint16_t *count,
