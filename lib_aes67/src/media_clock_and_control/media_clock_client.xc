@@ -35,21 +35,12 @@ void aes67_send_buf_ctl_info(chanend buf_ctl,
                              uintptr_t rdptr,
                              uintptr_t wrptr,
                              timer tmr) {
-    int thiscore_now;
-    int tile_id = get_local_tile_id();
-
     slave {
         buf_ctl :> int;
-        tmr :> thiscore_now;
-        buf_ctl <: thiscore_now;
         buf_ctl <: active;
-
-        // Skip ptp_ts and local_ts - not used by simplified buffer management
-        (void) ptp_ts;
-        (void) local_ts;
-
+        buf_ctl <: ptp_ts;
+        buf_ctl <: local_ts;
         buf_ctl <: rdptr;
         buf_ctl <: wrptr;
-        buf_ctl <: tile_id;
     }
 }

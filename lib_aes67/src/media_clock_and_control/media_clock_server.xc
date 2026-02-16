@@ -53,12 +53,15 @@ static void manage_buffer(buf_info_t &b,
                           chanend buf_ctl,
                           int index,
                           timer tmr) {
+    uint32_t presentation_timestamp;
+    uint32_t outgoing_timestamp_local;
+    uint32_t ptp_outgoing_actual;
     int fifo_locked;
     int diff, sample_diff;
-    unsigned int wordLength;
-    int rdptr, wrptr, fill;
-    int thiscore_now, othercore_now;
-    unsigned server_tile_id;
+    ptp_time_info_mod64 timeInfo;
+    uint32_t wordLength;
+    uintptr_t rdptr, wrptr;
+    intptr_t fill;
 
     wordLength = ptp_media_clock.wordLength;
 
@@ -66,13 +69,11 @@ static void manage_buffer(buf_info_t &b,
     buf_ctl <: BUF_CTL_REQUEST_INFO;
     master {
         buf_ctl <: 0;
-        buf_ctl :> othercore_now;
-        tmr :> thiscore_now;
         buf_ctl :> fifo_locked;
-        // Skip ptp_ts and local_ts - not sent by simplified buffer management
+        buf_ctl :> presentation_timestamp;
+        buf_ctl :> outgoing_timestamp_local;
         buf_ctl :> rdptr;
         buf_ctl :> wrptr;
-        buf_ctl :> server_tile_id;
     }
 
     fill = wrptr - rdptr;
@@ -84,9 +85,12 @@ static void manage_buffer(buf_info_t &b,
     xscope_int(MEDIA_OUTPUT_FIFO_FILL, fill);
 #endif
 
-    // Simplified approach: trust PTP-based media clock recovery
-    // Instead of timestamp comparison, use buffer fill level directly
-    diff = 0;  // Disable timestamp-based error calculation
+#if 0
+    ptp_get_local_time_info_mod64(timeInfo);
+    ptp_outgoing_actual = local_timestamp_to_ptp_mod32(outgoing_timestamp_local, timeInfo);
+    diff = (signed)ptp_outgoing_actual - (signed)presentation_timestamp;
+#endif
+    diff = 0;
 
 #if DEBUG_MEDIA_CLOCK
     if (fifo_locked && index == 0) {
