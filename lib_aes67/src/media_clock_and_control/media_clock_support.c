@@ -233,8 +233,7 @@ uint32_t aes67_update_media_clock(
                                     pid_coefficients->d_denominator) /
                                    diff_local;
 
-            clock_info->wordlen = clock_info->wordlen - p_adjustment -
-                                  i_adjustment - d_adjustment;
+            clock_info->wordlen -= p_adjustment + i_adjustment + d_adjustment;
         }
     }
 
