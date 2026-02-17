@@ -251,7 +251,7 @@ static void update_media_clocks(uint32_t clk_time,
       return;
 
     ptp_media_clock.wordLength =
-        aes67_update_media_clock(ptp_media_clock, clk_time, CLOCK_RECOVERY_PERIOD, pid_coefficients);
+        aes67_update_media_clock(ptp_media_clock, clk_time, pid_coefficients);
 
     update_media_clock_divide(ptp_media_clock);
 }
