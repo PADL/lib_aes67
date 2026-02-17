@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2017, XMOS Ltd, All rights reserved
-// Portions Copyright (c) 2025, PADL Software Pty Ltd, All rights reserved
+// Portions Copyright (c) 2025-2026, PADL Software Pty Ltd, All rights reserved
 /* This module implements the 802.1AS gPTP and IEEE 1588 timing protocols.
    It is a restricted version of the protocol that can only handle
    endpoints with one port. As such it is optimized (particularly for
@@ -109,21 +109,18 @@ local_timestamp_to_ptp_mod32(uint32_t local_ts, ptp_time_info_mod64 &info) {
     return (info.ptp_ts_lo + (int)local_diff);
 }
 
-void local_timestamp_to_ptp_mod64(uint32_t local_ts,
-                                  ptp_time_info_mod64 *info,
-                                  uint32_t *hi,
-                                  uint32_t *lo) {
-    int64_t local_diff = (signed)local_ts - (signed)info->local_ts;
-    uint64_t ptp_mod64 = ((uint64_t)info->ptp_ts_hi << 32) + info->ptp_ts_lo;
+[[dual_issue]] uint64_t
+local_timestamp_to_ptp_mod64(uint32_t local_ts, ptp_time_info_mod64 &info) {
+    int64_t local_diff = (signed)local_ts - (signed)info.local_ts;
+    uint64_t ptp_mod64 = ((uint64_t)info.ptp_ts_hi << 32) + info.ptp_ts_lo;
 
     local_diff *= 10;
     local_diff =
-        local_diff + ((local_diff * info->ptp_adjust) >> PTP_ADJUST_PREC);
+        local_diff + ((local_diff * info.ptp_adjust) >> PTP_ADJUST_PREC);
 
     ptp_mod64 += local_diff;
 
-    *hi = ptp_mod64 >> 32;
-    *lo = (uint32_t)ptp_mod64;
+    return ptp_mod64;
 }
 
 void ptp_get_reference_ptp_ts_mod_64(uint32_t &hi, uint32_t &lo) {

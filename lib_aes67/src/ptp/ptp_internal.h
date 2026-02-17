@@ -177,4 +177,7 @@ void ptp_output_test_clock(chanend ptp_link, port test_clock_port, int period);
 // order n64_t
 aes67_status_t parse_ptp_gmid(const char *unsafe gmid_str, REFERENCE_PARAM(n64_t, result));
 
+uint64_t
+local_timestamp_to_ptp_mod64(uint32_t local_ts, REFERENCE_PARAM(ptp_time_info_mod64, info));
+
 extern int sync_lock;

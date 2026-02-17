@@ -14,49 +14,6 @@ aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id) {
     return &receiver_streams[id];
 }
 
-static int get_absolute_media_clock(const aes67_stream_info_t *stream_info,
-                                    aes67_receiver_t *receiver,
-                                    uint32_t rtp_ts,
-                                    uint64_t *media_clock_p) {
-    uint64_t media_clock, delta;
-    int can_update = 1;
-
-    /* Basic algorithm derived from GStreamer */
-    media_clock = (rtp_ts - stream_info->clock_offset) & 0xffffffff;
-    media_clock += receiver->media_clock & 0xffffffff00000000;
-
-    if (media_clock < receiver->media_clock) {
-        delta = receiver->media_clock - media_clock;
-        if (delta > 0xffffffff)
-            media_clock += 1ULL << 32;
-    } else {
-        delta = media_clock - receiver->media_clock;
-        if (delta > 0xffffffff) {
-            if (media_clock < 1ULL << 32)
-                media_clock = 0;
-            else
-                media_clock -= 1ULL << 32;
-            can_update = 0;
-        }
-    }
-
-    *media_clock_p = media_clock;
-
-    return can_update;
-}
-
-static void media_clock_to_ptp_time_ns(const aes67_stream_info_t *stream_info,
-                                       uint64_t media_clock,
-                                       uint64_t *ptpTimeNS) {
-    // Convert media clock samples to nanoseconds
-    // Use 64-bit arithmetic to avoid overflow: media_clock * 1e9 / sample_rate
-    *ptpTimeNS =
-        (media_clock * NANOSECONDS_PER_SECOND) / stream_info->sample_rate;
-
-    // offset by twice packet time to create a PTP presentation time
-    *ptpTimeNS += stream_info->packet_time_us * 1000 * 2;
-}
-
 static void open_receiver_stream(aes67_stream_info_t *stream_info,
                                  aes67_receiver_t *receiver,
                                  const aes67_rtp_packet_t *packet) {
@@ -109,14 +66,7 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     if (need_open)
         open_receiver_stream(stream_info, receiver, packet);
 
-    uint64_t media_clock;
-    int update_media_clock = get_absolute_media_clock(
-        stream_info, receiver, packet->rtp_header.timestamp,
-        &media_clock);
-    size_t frame_count = aes67_rtp_packet_length_rtp(packet) / frame_size;
-
-    uint64_t ptp_time_ns;
-    media_clock_to_ptp_time_ns(stream_info, media_clock, &ptp_time_ns);
+    const size_t frame_count = aes67_rtp_packet_length_rtp(packet) / frame_size;
 
     // samples are laid out Frame0[C0C1...CN] ... FrameN[C0C1...CN]
     // payload_ptr points to the first sample for a channel
@@ -126,13 +76,13 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     for (size_t ch = 0; ch < stream_info->channel_count; ch++) {
         aes67_audio_fifo_push_samples(
             &receiver->fifos[ch], payload_ptr, stream_info->sample_size,
-            stream_info->channel_count, frame_count, stream_info->encoding,
-            (uint32_t)ptp_time_ns);
+            stream_info->channel_count, frame_count,
+            stream_info->encoding,
+            packet->rtp_header.timestamp,
+            stream_info->clock_offset,
+            stream_info->packet_time_us);
         payload_ptr += stream_info->sample_size;
     }
-
-    if (update_media_clock)
-        receiver->media_clock = media_clock + frame_count;
 
     for (size_t ch = 0; ch < stream_info->channel_count; ch++)
         aes67_audio_fifo_maintain(&receiver->fifos[ch], buf_ctl,

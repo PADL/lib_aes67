@@ -12,7 +12,6 @@ extern "C" {
 typedef struct _aes67_receiver {
     aes67_socket_t socket;
     aes67_rtp_sequence_state_t sequence_state;
-    uint64_t media_clock;
     aes67_audio_fifo_t fifos[AES67_MAX_CHANNELS_PER_RECEIVER];
     int buf_ctl_notified;
 } aes67_receiver_t;

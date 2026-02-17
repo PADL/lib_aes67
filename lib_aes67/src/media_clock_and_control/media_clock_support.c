@@ -100,12 +100,12 @@ void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate) {
 }
 
 aes67_media_clock_pid_coefficients_t cs2100_pid_coefficients = {
-    .p_numerator = 80,    // Original CS2100 P gain: 80/11 ≈ 7.27
+    .p_numerator = 100,   // Increased P gain: 100/11 ≈ 9.09 for faster response
     .p_denominator = 11,
-    .i_numerator = 1,     // Original CS2100 I gain: 1/5 = 0.2
-    .i_denominator = 5,
-    .d_numerator = 0,     // Original CS2100 had no D term
-    .d_denominator = 1
+    .i_numerator = 1,     // Reduced I gain: 1/20 = 0.05 to prevent windup
+    .i_denominator = 20,
+    .d_numerator = 1,     // Added small D term: 1/10 = 0.1 for stability
+    .d_denominator = 10
 };
 
 aes67_media_clock_pid_coefficients_t cs2300_pid_coefficients = {
@@ -118,9 +118,9 @@ aes67_media_clock_pid_coefficients_t cs2300_pid_coefficients = {
 };
 
 aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
-    .p_numerator = 5,
+    .p_numerator = 50,
     .p_denominator = 1,
-    .i_numerator = 1,
+    .i_numerator = 0,
     .i_denominator = 50,
     .d_numerator = 0,
     .d_denominator = 1
@@ -191,24 +191,19 @@ uint32_t aes67_update_media_clock(
             clock_info->first = 0;
         } else {
             clock_info->ierror += err;
-            // D term: rate of change of error
             derror = pid_coefficients->d_numerator ? (perror - clock_info->prev_perror) : 0;
         }
         ierror = clock_info->ierror;
 
 #if DEBUG_PID_TUNING
         if (clock_info->prev_perror != perror || abs((int32_t)err) > 1000) {
-            debug_printf(
-                "PID: P=%d/%d I=%d/%d D=%d/%d perror=%x.%x ierror=%x.%x derror=%x.%x "
-                "diff_local=%x.%x wordlen=%x.%x\n",
-                pid_coefficients->p_numerator, pid_coefficients->p_denominator,
-                pid_coefficients->i_numerator, pid_coefficients->i_denominator,
-                pid_coefficients->d_numerator, pid_coefficients->d_denominator,
-                (perror >> 32) & 0xffffffff, perror & 0xffffffff,
-                (ierror >> 32) & 0xffffffff, ierror & 0xffffffff,
-                (derror >> 32) & 0xffffffff, derror & 0xffffffff,
-                (diff_local >> 32) & 0xffffffff, diff_local & 0xffffffff,
-                (clock_info->wordlen >> 32) & 0xffffffff, clock_info->wordlen & 0xffffffff);
+            debug_printf("PID: perror=%x:%x ierror=%x:%x derror=%x:%x\n",
+                (perror >> 32) & 0xffffffff, (int32_t)perror,
+                (ierror >> 32) & 0xffffffff, (int32_t)ierror,
+                (derror >> 32) & 0xffffffff, (int32_t)derror);
+            debug_printf("PID: diff_local=%x:%x wordlen=%x:%x\n",
+                (diff_local >> 32) & 0xffffffff, (int32_t)diff_local,
+                (clock_info->wordlen >> 32) & 0xffffffff, (int32_t)clock_info->wordlen);
         }
 #endif
 

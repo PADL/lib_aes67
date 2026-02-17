@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2017, XMOS Ltd, All rights reserved
-// Portions Copyright (c) 2025, PADL Software Pty Ltd, All rights reserved
+// Portions Copyright (c) 2025-2026, PADL Software Pty Ltd, All rights reserved
 #include <xs1.h>
 #include <xclib.h>
 #include <debug_print.h>
@@ -14,7 +14,7 @@
 #include "rtp_internal.h"
 
 #ifndef DEBUG_MEDIA_CLOCK
-#define DEBUG_MEDIA_CLOCK 2
+#define DEBUG_MEDIA_CLOCK 0
 #endif
 
 #ifndef PLL_OUTPUT_TIMING_CHECK
@@ -24,7 +24,7 @@
 #define STABLE_THRESHOLD 32
 #define LOCK_COUNT_THRESHOLD 1000
 #define ACCEPTABLE_FILL_ADJUST 50000
-#define LOST_LOCK_THRESHOLD 24
+#define LOST_LOCK_THRESHOLD 1000
 #define MIN_FILL_LEVEL 5
 
 // Force unlocking if there is a large step change of word length during
@@ -44,22 +44,21 @@ void aes67_clk_ctl_set_rate(chanend clk_ctl, int wordLength) {
 
 #if AES67_NUM_MEDIA_OUTPUTS != 0
 
-#if DEBUG_MEDIA_CLOCK
-static int last_fill;
-#endif
-
 static void manage_buffer(buf_info_t &b,
                           chanend buf_ctl,
                           int index,
                           timer tmr) {
-    uint32_t presentation_timestamp;
-    uint32_t outgoing_timestamp_local;
-    uint32_t ptp_outgoing_actual;
-    int fifo_locked;
-    int diff, sample_diff;
+#if DEBUG_MEDIA_CLOCK
+    static int last_fill;
+#endif
+    uint32_t media_clock, clock_offset, packet_time;
+    uint64_t ptp_ts, ptp_ts_samples;
     ptp_time_info_mod64 timeInfo;
+    int fifo_locked;
+    int32_t sample_diff;
     uint32_t wordLength;
     uintptr_t rdptr, wrptr;
+    uint32_t local_ts;
     intptr_t fill;
 
     wordLength = ptp_media_clock.wordLength;
@@ -69,8 +68,10 @@ static void manage_buffer(buf_info_t &b,
     master {
         buf_ctl <: 0;
         buf_ctl :> fifo_locked;
-        buf_ctl :> presentation_timestamp;
-        buf_ctl :> outgoing_timestamp_local;
+        buf_ctl :> media_clock;
+        buf_ctl :> clock_offset;
+        buf_ctl :> packet_time;
+        buf_ctl :> local_ts;
         buf_ctl :> rdptr;
         buf_ctl :> wrptr;
     }
@@ -84,22 +85,26 @@ static void manage_buffer(buf_info_t &b,
     xscope_int(MEDIA_OUTPUT_FIFO_FILL, fill);
 #endif
 
-#if 0
     ptp_get_local_time_info_mod64(timeInfo);
-    ptp_outgoing_actual = local_timestamp_to_ptp_mod32(outgoing_timestamp_local, timeInfo);
-    diff = (signed)ptp_outgoing_actual - (signed)presentation_timestamp;
-#endif
-    diff = 0;
+    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo); // TODO: packet_time adjustment
+
+    // convert computed PTP presentation to a media clock (sample count)
+    ptp_ts_samples = ptp_ts * (ptp_media_clock.info.rate / 100);
+    ptp_ts_samples /= (NANOSECONDS_PER_SECOND / 100);
+    ptp_ts_samples += clock_offset;
+    ptp_ts_samples &= 0xffffffff;
+
+    sample_diff = (int32_t)ptp_ts_samples - (int32_t)media_clock;
 
 #if DEBUG_MEDIA_CLOCK
-    if (fifo_locked && index == 0) {
-        int diff = last_fill - fill;
-        if (diff > 1 || diff < -1)
+    if (fifo_locked) {
+        int32_t fill_diff = last_fill - fill;
+        if (fill_diff > 1 || fill_diff < -1)
             debug_printf("last fill changed: last %d fill %d\n", last_fill,
                          fill);
         last_fill = fill;
     }
-#endif
+#endif // DEBUG_MEDIA_CLOCK
 
     if (wordLength == 0) {
         // clock not locked yet
@@ -109,8 +114,6 @@ static void manage_buffer(buf_info_t &b,
         debug_printf("clock not locked yet\n");
         return;
     }
-
-    sample_diff = diff / ((int) ((wordLength * 10) >> WC_FRACTIONAL_BITS));
 
     if (fifo_locked && b.lock_count < LOCK_COUNT_THRESHOLD)
         b.lock_count++;
@@ -124,9 +127,8 @@ static void manage_buffer(buf_info_t &b,
         b.stability_count = 0;
     }
 
-    if (!fifo_locked && (b.stability_count > STABLE_THRESHOLD)) {
-        int max_adjust =
-            AUDIO_OUTPUT_FIFO_WORD_SIZE - MAX_SAMPLES_PER_RTP_PACKET;
+    if (!fifo_locked && b.stability_count > STABLE_THRESHOLD) {
+        int max_adjust = AUDIO_OUTPUT_FIFO_WORD_SIZE - MAX_SAMPLES_PER_RTP_PACKET;
 
         if (fill - sample_diff > max_adjust ||
             fill - sample_diff < -max_adjust) {
@@ -160,14 +162,14 @@ static void manage_buffer(buf_info_t &b,
     )) {
 #if DEBUG_MEDIA_CLOCK
         if (b.lock_count == LOCK_COUNT_THRESHOLD)
-            debug_printf("Media output %d lost lock\n", index);
+            debug_printf("Media output %d lost lock (threshold reached) (%d)\n", index, sample_diff);
 #if UNLOCK_ON_LARGE_DIFF_CHANGE
         else if (sample_diff > LOST_LOCK_THRESHOLD_LARGE ||
                  sample_diff < -LOST_LOCK_THRESHOLD_LARGE)
-            debug_printf("Media output %d lost lock (large change)\n", index);
+            debug_printf("Media output %d lost lock (large change) (%d)\n", index, sample_diff);
 #endif
         else
-            debug_printf("Media output %d lost lock (discontinuity)\n", index);
+            debug_printf("Media output %d lost lock (discontinuity) (%d)\n", index, sample_diff);
 #endif // DEBUG_MEDIA_CLOCK
         buf_ctl <: index;
         buf_ctl <: BUF_CTL_RESET;
