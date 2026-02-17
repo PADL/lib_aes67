@@ -141,8 +141,8 @@ uint32_t aes67_update_media_clock(
                     pid_coefficients)) {
     clock_info_t *clock_info = &ptp_clock_info;
     int64_t ierror, perror, derror;
-    int64_t diff_local;
     ptp_time_info_mod64 timeInfo;
+    int64_t diff_local;
 
     int64_t err, diff_ptp;
     uint32_t ptp2;
