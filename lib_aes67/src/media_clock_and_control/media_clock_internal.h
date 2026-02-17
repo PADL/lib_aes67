@@ -52,6 +52,15 @@ void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate);
 uint32_t aes67_update_media_clock(
     REFERENCE_PARAM(const aes67_media_clock_t, mclock),
     uint32_t t2,
-    int32_t period,
     REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t,
                     pid_coefficients));
+
+static inline uint64_t abs64(int64_t value) {
+  const int64_t mask = value >> 63;
+  return (value + mask) ^ mask;
+}
+
+static inline uint32_t abs32(int32_t value) {
+  const int32_t mask = value >> 31;
+  return (value + mask) ^ mask;
+}

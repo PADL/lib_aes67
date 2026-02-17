@@ -1,26 +1,6 @@
 // Copyright (c) 2011-2017, XMOS Ltd, All rights reserved
 // Portions Copyright (c) 2025, PADL Software Pty Ltd, All rights reserved
 
-/**
- * PID CONTROLLER TUNING GUIDE:
- *
- * To enable PID tuning debug output, add to your Makefile or build config:
- * -DDEBUG_PID_TUNING=1
- *
- * To tune PID coefficients, modify the constants below:
- * - pid_coefficients.p_numerator/pid_coefficients.p_denominator: Proportional
- * gain (default 80/11 ≈ 7.27)
- * - pid_coefficients->i_numerator/pid_coefficients->i_denominator: Integral
- * gain (default 1/5 = 0.2)
- * - pid_coefficients->d_numerator/pid_coefficients->d_denominator: Derivative
- * gain (default 0/1 = 0, disabled)
- *
- * Suggested tuning sequence:
- * 1. Set D=0, tune P for fastest response without overshoot
- * 2. Add I to eliminate steady-state error
- * 3. Add D if needed to reduce overshoot/oscillation
- */
-
 #include <stdlib.h>
 #include <xccompat.h>
 #include <xscope.h>
@@ -128,23 +108,14 @@ aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
 
 #define MAX_ERROR_TOLERANCE 100
 
-// Enhanced debug levels for PID tuning
-#ifndef DEBUG_PID_TUNING
-#define DEBUG_PID_TUNING 0
-#endif
-
 uint32_t aes67_update_media_clock(
     REFERENCE_PARAM(const aes67_media_clock_t, mclock),
     uint32_t t2,
-    int32_t period0,
     REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t,
                     pid_coefficients)) {
     clock_info_t *clock_info = &ptp_clock_info;
-    int64_t ierror, perror, derror;
+    int64_t perror, diff_ptp, diff_local;
     ptp_time_info_mod64 timeInfo;
-    int64_t diff_local;
-
-    int64_t err, diff_ptp;
     uint32_t ptp2;
 
     ptp_get_local_time_info_mod64(&timeInfo);
@@ -153,80 +124,39 @@ uint32_t aes67_update_media_clock(
     diff_local = (int32_t)t2 - (int32_t)clock_info->t1;
     diff_ptp = (int32_t)ptp2 - (int32_t)clock_info->ptp1;
 
-    // Skip PID update if insufficient time has passed to avoid division by zero
-    int64_t abs_diff_local = diff_local < 0 ? -diff_local : diff_local;
-    if (abs_diff_local < 100) { // Minimum 100 timer ticks (1us at 100MHz)
-        return local_wordlen_to_external_wordlen(clock_info->wordlen);
-    }
+    debug_printf("diff_local %d diff_ptp %d\n", diff_local, diff_ptp);
 
-    // Calculate timing error using PTP-based approach
-    // error in ns = diff_ptp - diff_local * wlptp / wl
-    // error in ns * wl = dptp * wl - dlocal * wlptp
-    // err = actual - expected
+    if (abs64(diff_local) == 0)
+      return local_wordlen_to_external_wordlen(clock_info->wordlen);
 
-    err = (diff_ptp * clock_info->wordlen) -
-          (diff_local * clock_info->wordlen * 10);
-    err = ((err << WORDLEN_FRACTIONAL_BITS) / (int64_t)clock_info->wordlen);
+    perror = (diff_ptp * clock_info->wordlen) - (diff_local * clock_info->wordlen * 10);
+    perror = ((perror << WORDLEN_FRACTIONAL_BITS) / (int64_t)clock_info->wordlen);
 
-    // Chop off bottom bits - thread scheduling causes noise here
-    err &= ~(0xff);
-
-    if ((err >> WORDLEN_FRACTIONAL_BITS) > MAX_ERROR_TOLERANCE ||
-        (err >> WORDLEN_FRACTIONAL_BITS) < -MAX_ERROR_TOLERANCE) {
-        // Reset to default wordlen if error is too large
+    if ((perror >> WORDLEN_FRACTIONAL_BITS) > MAX_ERROR_TOLERANCE ||
+        (perror >> WORDLEN_FRACTIONAL_BITS) < -MAX_ERROR_TOLERANCE) {
         clock_info->wordlen =
-            ((100000000LL << WORDLEN_FRACTIONAL_BITS) / clock_info->rate);
+            (((int64_t)TIMER_TICKS_PER_SEC << WORDLEN_FRACTIONAL_BITS) / clock_info->rate);
         clock_info->ierror = 0;
         clock_info->prev_perror = 0;
         clock_info->first = 1;
     } else {
-        // Apply PID control using the calculated error
-        // P term: current error
-        perror = err;
+        int64_t ierror, derror = 0;
 
-        // I term: accumulate error over time
         if (clock_info->first) {
-            clock_info->ierror = err;
-            derror = 0; // No derivative on first call
+            clock_info->ierror = perror;
             clock_info->first = 0;
         } else {
-            clock_info->ierror += err;
+            clock_info->ierror += perror;
             derror = pid_coefficients->d_numerator ? (perror - clock_info->prev_perror) : 0;
         }
         ierror = clock_info->ierror;
 
-#if DEBUG_PID_TUNING
-        if (clock_info->prev_perror != perror || abs((int32_t)err) > 1000) {
-            debug_printf("PID: perror=%x:%x ierror=%x:%x derror=%x:%x\n",
-                (perror >> 32) & 0xffffffff, (int32_t)perror,
-                (ierror >> 32) & 0xffffffff, (int32_t)ierror,
-                (derror >> 32) & 0xffffffff, (int32_t)derror);
-            debug_printf("PID: diff_local=%x:%x wordlen=%x:%x\n",
-                (diff_local >> 32) & 0xffffffff, (int32_t)diff_local,
-                (clock_info->wordlen >> 32) & 0xffffffff, (int32_t)clock_info->wordlen);
-        }
-#endif
-
-        // Update stored values for next iteration
         clock_info->prev_perror = perror;
 
-        // Apply PID control to adjust wordlen
-        // P term: proportional to current error
-        // I term: proportional to accumulated error
-        // D term: proportional to rate of error change
-        if (diff_local) {
-            int64_t p_adjustment = ((perror * pid_coefficients->p_numerator) /
-                                    pid_coefficients->p_denominator) /
-                                   diff_local;
-            int64_t i_adjustment = ((ierror * pid_coefficients->i_numerator) /
-                                    pid_coefficients->i_denominator) /
-                                   diff_local;
-            int64_t d_adjustment = ((derror * pid_coefficients->d_numerator) /
-                                    pid_coefficients->d_denominator) /
-                                   diff_local;
-
-            clock_info->wordlen -= p_adjustment + i_adjustment + d_adjustment;
-        }
+        clock_info->wordlen -=
+            ((perror / diff_local) * pid_coefficients->p_numerator) / pid_coefficients->p_denominator -
+            ((ierror / diff_local) * pid_coefficients->i_numerator) / pid_coefficients->i_denominator -
+            ((derror / diff_local) * pid_coefficients->d_numerator) / pid_coefficients->d_denominator;
     }
 
     clock_info->t1 = t2;
