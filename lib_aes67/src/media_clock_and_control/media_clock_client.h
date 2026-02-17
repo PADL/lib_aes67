@@ -34,7 +34,9 @@ int aes67_get_buf_ctl_adjust(chanend buf_ctl);
 int aes67_get_buf_ctl_cmd(chanend buf_ctl);
 void aes67_send_buf_ctl_info(chanend buf_ctl,
                              int active,
-                             uint32_t ptp_ts,
+                             uint32_t media_clock,
+                             uint32_t clock_offset,
+                             uint32_t packet_time,
                              uint32_t local_ts,
                              uintptr_t rdptr,
                              uintptr_t wrptr);

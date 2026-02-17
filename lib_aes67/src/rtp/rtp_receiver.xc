@@ -106,8 +106,13 @@ static void aes67_audio_fifo_handle_buf_ctl(chanend buf_ctl,
                                             aes67_audio_fifo_t *fifo,
                                             int *buf_ctl_notified) {
     // FIXME: why is this cast necessary to avoid linking errors?
+    timer t;
+    uint32_t local_ts;
+
+    t :> local_ts;
+
     unsafe {
-        aes67_audio_fifo_handle_buf_ctl_unsafe((unsigned int)buf_ctl, fifo, buf_ctl_notified);
+        aes67_audio_fifo_handle_buf_ctl_unsafe((uint32_t)buf_ctl, local_ts, fifo, buf_ctl_notified);
     }
 }
 

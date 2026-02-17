@@ -13,8 +13,8 @@
 typedef enum aes67_fifo_state {
     AES67_FIFO_DISABLED = 0, // Not active
     AES67_FIFO_ZEROING,      // Pushing zeros through to fill
-    AES67_FIFO_LOCKING, // Clock recovery trying to lock to the sample stream
-    AES67_FIFO_LOCKED   // Clock recovery is locked and working
+    AES67_FIFO_LOCKING,      // Clock recovery trying to lock to the sample stream
+    AES67_FIFO_LOCKED        // Clock recovery is locked and working
 } aes67_fifo_state_t;
 
 typedef struct aes67_audio_fifo {
@@ -26,9 +26,10 @@ typedef struct aes67_audio_fifo {
                              // timestamps apply to
     int local_ts; // When a sample is played out, this contains the ref clock
                   // when it happened
-    int ptp_ts;   // Contains the PTP timestamp of the marked sample
-    uint32_t sample_count; // The count of samples that have passed through the
-                           // buffer
+    uint32_t media_clock;     // RTP media clock
+    uint32_t clock_offset;    // SDP media clock offset
+    uint32_t packet_time;     // SDP packet time in ns
+    uint32_t sample_count; // The count of samples that have passed through the buffer
     volatile uint32_t *unsafe zero_marker; // Used during zeroing phase
     aes67_fifo_state_t state;              // State of the FIFO
     int last_notification_time; // Last time that the clock recovery thread was
@@ -55,7 +56,8 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
                                int *notified_buf_ctl);
 
 // Buffer control message handling
-void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
+void aes67_audio_fifo_handle_buf_ctl_unsafe(uint32_t buf_ctl,
+                                            uint32_t local_ts,
                                             aes67_audio_fifo_t *unsafe fifo,
                                             int *unsafe buf_ctl_notified);
 aes67_fifo_state_t aes67_audio_fifo_get_state(aes67_audio_fifo_t *fifo);
@@ -67,4 +69,6 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t stride,
                                    size_t num_samples,
                                    uint32_t encoding,
-                                   uint32_t ptp_timestamp_ns);
+                                   uint32_t media_clock,
+                                   uint32_t clock_offset,
+                                   uint32_t packet_time_us);

@@ -24,7 +24,9 @@ void aes67_audio_fifo_init(aes67_audio_fifo_t *fifo) {
     fifo->last_notification_time = 0;
     fifo->zero_flag = 1;
     fifo->marker = NULL;
-    fifo->ptp_ts = 0;
+    fifo->media_clock = 0;
+    fifo->clock_offset = 0;
+    fifo->packet_time = 0;
     fifo->sample_count = 0;
     fifo->zero_marker = NULL;
 }
@@ -44,7 +46,9 @@ void aes67_audio_fifo_enable(aes67_audio_fifo_t *fifo) {
     fifo->dptr = START_OF_FIFO(fifo);
     fifo->wrptr = START_OF_FIFO(fifo);
     fifo->marker = NULL;
-    fifo->ptp_ts = 0;
+    fifo->media_clock = 0;
+    fifo->clock_offset = 0;
+    fifo->packet_time = 0;
     fifo->zero_marker = END_OF_FIFO(fifo) - 1;
     fifo->zero_flag = 1;
     *fifo->zero_marker = 1;
@@ -113,7 +117,9 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
 
             fifo->wrptr = new_wrptr;
             fifo->state = AES67_FIFO_LOCKING;
-            fifo->ptp_ts = 0;
+            fifo->media_clock = 0;
+            fifo->clock_offset = 0;
+            fifo->packet_time = 0;
             fifo->marker = NULL;
 #if (OUTPUT_DURING_LOCK == 0)
             fifo->zero_flag = 1;
@@ -126,7 +132,7 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
         time_since_last_notification =
             (int32_t)fifo->sample_count - (int32_t)fifo->last_notification_time;
 
-        if (fifo->ptp_ts != 0 && *notified_buf_ctl == 0 &&
+        if (fifo->media_clock != 0 && *notified_buf_ctl == 0 &&
             (fifo->last_notification_time == 0 ||
              time_since_last_notification > NOTIFICATION_PERIOD)) {
             aes67_notify_buf_ctl_stream_info(buf_ctl, (uintptr_t)fifo);
@@ -144,7 +150,9 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t stride, // effectively channel count
                                    size_t num_frames,
                                    uint32_t encoding,
-                                   uint32_t ptp_time_ns) {
+                                   uint32_t media_clock,
+                                   uint32_t clock_offset,
+                                   uint32_t packet_time_us) {
     volatile uint32_t *wrptr = fifo->wrptr;
     uint32_t sample;
     size_t sample_count = 0;
@@ -152,7 +160,9 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
     if (fifo->state == AES67_FIFO_DISABLED)
         return;
 
-    fifo->ptp_ts = ptp_time_ns ? ptp_time_ns : 1;
+    fifo->media_clock = media_clock;
+    fifo->clock_offset = clock_offset;
+    fifo->packet_time = packet_time_us * 1000; // packet time in ns
 
     for (size_t i = 0; i < num_frames; i++) {
         switch (encoding) {
@@ -198,7 +208,8 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
 }
 
 // Handle buffer control messages
-void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
+void aes67_audio_fifo_handle_buf_ctl_unsafe(uint32_t buf_ctl,
+                                            uint32_t local_ts,
                                             aes67_audio_fifo_t *fifo,
                                             int *buf_ctl_notified) {
     int cmd = aes67_get_buf_ctl_cmd(buf_ctl);
@@ -206,10 +217,13 @@ void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
     switch (cmd) {
     case BUF_CTL_REQUEST_INFO: {
         aes67_send_buf_ctl_info(buf_ctl, fifo->state == AES67_FIFO_LOCKED,
-                                fifo->ptp_ts, 0,
+                                fifo->media_clock, fifo->clock_offset, fifo->packet_time,
+                                local_ts,
                                 fifo->dptr - START_OF_FIFO(fifo),
                                 fifo->wrptr - START_OF_FIFO(fifo));
-        fifo->ptp_ts = 0;
+        fifo->media_clock = 0;
+        fifo->clock_offset = 0;
+        fifo->packet_time = 0;
         fifo->marker = NULL;
         break;
     }
@@ -227,7 +241,9 @@ void aes67_audio_fifo_handle_buf_ctl_unsafe(unsigned int buf_ctl,
         fifo->wrptr = new_wrptr;
         fifo->state = AES67_FIFO_LOCKED;
         fifo->zero_flag = 0;
-        fifo->ptp_ts = 0;
+        fifo->media_clock = 0;
+        fifo->clock_offset = 0;
+        fifo->packet_time = 0;
         fifo->marker = NULL;
         aes67_buf_ctl_ack(buf_ctl);
         *buf_ctl_notified = 0;
