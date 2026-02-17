@@ -19,7 +19,7 @@ void ptp_server_init(client interface ethernet_cfg_if i_eth_cfg,
                      client interface xtcp_if ?i_xtcp,
                      enum ptp_server_type server_type,
                      timer ptp_timer,
-                     int &ptp_timeout) {
+                     uint32_t &ptp_timeout) {
     ptp_timer :> ptp_timeout;
 
     ptp_init(i_eth_cfg, i_eth_rx, i_xtcp, server_type);

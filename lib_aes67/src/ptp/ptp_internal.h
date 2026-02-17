@@ -109,7 +109,7 @@ void ptp_server_init(CLIENT_INTERFACE(ethernet_cfg_if, i_eth_cfg),
                      CLIENT_INTERFACE(xtcp_if ?, i_xtcp),
                      enum ptp_server_type server_type,
                      timer ptp_timer,
-                     REFERENCE_PARAM(int, ptp_timeout));
+                     REFERENCE_PARAM(uint32_t, ptp_timeout));
 
 void ptp_get_reference_ptp_ts_mod_64(REFERENCE_PARAM(uint32_t, hi), REFERENCE_PARAM(uint32_t, lo));
 

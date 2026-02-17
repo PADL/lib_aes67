@@ -193,7 +193,7 @@ static void manage_buffer(buf_info_t &b,
 
 #define INTERNAL_CLOCK_DIVIDE 25
 
-static void update_media_clock_divide(aes67_media_clock_t &clk) {
+static inline void update_media_clock_divide(aes67_media_clock_t &clk) {
     uint64_t divWordLength =
         (uint64_t)clk.wordLength * INTERNAL_CLOCK_DIVIDE / 2;
 
@@ -245,14 +245,15 @@ static void do_media_clock_output(aes67_media_clock_t &clk,
     p @ clk.wordTime <: clk.bit;
 }
 
-static void update_media_clocks(int clk_time,
+static void update_media_clocks(uint32_t clk_time,
                                 const aes67_media_clock_pid_coefficients_t &pid_coefficients) {
-    if (ptp_media_clock.info.active) {
-        ptp_media_clock.wordLength =
-            aes67_update_media_clock(ptp_media_clock, clk_time, CLOCK_RECOVERY_PERIOD, pid_coefficients);
+    if (!ptp_media_clock.info.active)
+      return;
 
-        update_media_clock_divide(ptp_media_clock);
-    }
+    ptp_media_clock.wordLength =
+        aes67_update_media_clock(ptp_media_clock, clk_time, CLOCK_RECOVERY_PERIOD, pid_coefficients);
+
+    update_media_clock_divide(ptp_media_clock);
 }
 
 void aes67_register_clock(uint32_t i) { registered[i] = 0; }
@@ -283,8 +284,8 @@ void aes67_io_task(chanend buf_ctl[num_buf_ctl],
                    client xtcp_if i_xtcp,
                    uint32_t flags) {
     timer tmr;
-    int ptp_timeout;
-    unsigned int clk_time;
+    uint32_t ptp_timeout;
+    uint32_t clk_time;
 #if (AES67_NUM_MEDIA_OUTPUTS != 0)
     uint8_t buf_ctl_cmd;
 #endif
