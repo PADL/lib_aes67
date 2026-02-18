@@ -1,5 +1,5 @@
 // Copyright (c) 2011-2017, XMOS Ltd, All rights reserved
-// Portions Copyright (c) 2025 PADL Software Pty Ltd, All rights reserved
+// Portions Copyright (c) 2025-2026 PADL Software Pty Ltd, All rights reserved
 
 #include <string.h>
 #include <xassert.h>
@@ -65,14 +65,11 @@ uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
 
     *valid = (dptr != fifo->wrptr);
 
-    if (dptr == fifo->wrptr) {
-        // Underflow
-        return 0;
-    }
+    if (dptr == fifo->wrptr)
+        return 0; // underflow
 
     sample = *dptr;
 
-    // Check if this is the marked sample for timestamp correlation
     if (dptr == fifo->marker && fifo->local_ts == 0)
         fifo->local_ts = timestamp ? timestamp : 1;
 
@@ -166,7 +163,7 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
       if (new_marker >= END_OF_FIFO(fifo))
           new_marker -= AUDIO_OUTPUT_FIFO_WORD_SIZE;
 
-      fifo->marker = (uint32_t *)new_marker;
+      fifo->marker = new_marker;
       fifo->media_clock = media_clock;
       fifo->clock_offset = clock_offset;
       fifo->packet_time = packet_time_us * 1000; // packet time in ns
