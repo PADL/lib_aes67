@@ -50,10 +50,14 @@ int aes67_media_clock_get_buf_info(uintptr_t fifo);
 void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate);
 
 uint32_t aes67_update_media_clock(
-    REFERENCE_PARAM(const aes67_media_clock_t, mclock),
-    uint32_t t2,
+    const uint32_t t2,
     REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t,
                     pid_coefficients));
+
+uint32_t
+ptp_timestamp_to_media_clock(uint64_t ptp_ts,
+                             uint32_t rate,
+                             uint32_t clock_offset);
 
 static inline uint64_t abs64(int64_t value) {
   const int64_t mask = value >> 63;

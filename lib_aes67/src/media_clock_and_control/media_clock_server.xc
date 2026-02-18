@@ -42,6 +42,21 @@ void aes67_clk_ctl_set_rate(chanend clk_ctl, int wordLength) {
     }
 }
 
+uint32_t
+ptp_timestamp_to_media_clock(uint64_t ptp_ts,
+                             uint32_t rate,
+                             uint32_t clock_offset) {
+    uint64_t ptp_ts_samples;
+
+    // convert computed PTP presentation to a media clock (sample count)
+    ptp_ts_samples = ptp_ts * ((uint64_t)rate / 100);
+    ptp_ts_samples /= ((uint64_t)NANOSECONDS_PER_SECOND / 100);
+    ptp_ts_samples += clock_offset;
+    ptp_ts_samples &= 0xffffffff;
+
+    return ptp_ts_samples;
+}
+
 #if AES67_NUM_MEDIA_OUTPUTS != 0
 
 static void manage_buffer(buf_info_t &b,
@@ -86,13 +101,9 @@ static void manage_buffer(buf_info_t &b,
 #endif
 
     ptp_get_local_time_info_mod64(timeInfo);
-    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo); // TODO: packet_time adjustment
+    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo) + packet_time;
 
-    // convert computed PTP presentation to a media clock (sample count)
-    ptp_ts_samples = ptp_ts * (ptp_media_clock.info.rate / 100);
-    ptp_ts_samples /= (NANOSECONDS_PER_SECOND / 100);
-    ptp_ts_samples += clock_offset;
-    ptp_ts_samples &= 0xffffffff;
+    ptp_ts_samples = ptp_timestamp_to_media_clock(ptp_ts, ptp_media_clock.info.rate, clock_offset);
 
     sample_diff = (int32_t)ptp_ts_samples - (int32_t)media_clock;
 
@@ -193,7 +204,8 @@ static void manage_buffer(buf_info_t &b,
 
 #define INTERNAL_CLOCK_DIVIDE 25
 
-static inline void update_media_clock_divide(aes67_media_clock_t &clk) {
+static inline void
+update_media_clock_divide(aes67_media_clock_t &clk) {
     uint64_t divWordLength =
         (uint64_t)clk.wordLength * INTERNAL_CLOCK_DIVIDE / 2;
 
@@ -245,13 +257,12 @@ static void do_media_clock_output(aes67_media_clock_t &clk,
     p @ clk.wordTime <: clk.bit;
 }
 
-static void update_media_clocks(uint32_t clk_time,
+static void update_media_clocks(const uint32_t clk_time,
                                 const aes67_media_clock_pid_coefficients_t &pid_coefficients) {
     if (!ptp_media_clock.info.active)
       return;
 
-    ptp_media_clock.wordLength =
-        aes67_update_media_clock(ptp_media_clock, clk_time, pid_coefficients);
+    ptp_media_clock.wordLength = aes67_update_media_clock(clk_time, pid_coefficients);
 
     update_media_clock_divide(ptp_media_clock);
 }
@@ -262,17 +273,37 @@ aes67_media_clock_info_t aes67_get_clock_info(void) {
     return ptp_media_clock.info;
 }
 
-static void aes67_set_clock_info(const aes67_media_clock_info_t info,
-                                 int clk_time) {
-    int prev_active = ptp_media_clock.info.active;
-    ptp_media_clock.info = info;
+static unsafe void
+handle_sync_lock_or_rate_change(int &last_ptp_sync_lock, const uint32_t clk_time) {
+    aes67_media_clock_info_t info = ptp_media_clock.info;
+    int update_clock_info = 0;
 
-    debug_printf("set_clock_info: prev_active %d -> active %d\n", prev_active,
-                 info.active);
+    if (last_ptp_sync_lock != sync_lock) {
+        update_clock_info = !info.active && sync_lock;
+        info.active = sync_lock;
+        if (info.rate == 0)
+            info.rate = AES67_DEFAULT_SAMPLE_RATE;
+        last_ptp_sync_lock = sync_lock;
+    }
 
-    if (!prev_active && info.active)
-        aes67_init_media_clock_recovery(clk_time - CLOCK_RECOVERY_PERIOD,
-                                        ptp_media_clock.info.rate);
+    aes67_stream_info_t *unsafe s0 = aes67_get_receiver_stream(0);
+    aes67_stream_state_t s0_state = s0->state;
+
+    COMPILER_BARRIER();
+
+    if ((s0_state == AES67_STREAM_STATE_POTENTIAL || s0_state == AES67_STREAM_STATE_ENABLED) &&
+        s0->sample_rate != info.rate) {
+        info.rate = s0->sample_rate;
+        update_clock_info++;
+    }
+
+    if (update_clock_info) {
+        debug_printf("handle_sync_lock_or_rate_change: active %d->%d rate %d->%d\n",
+                     ptp_media_clock.info.active, info.active,
+                     ptp_media_clock.info.rate, info.rate);
+        ptp_media_clock.info = info;
+        aes67_init_media_clock_recovery(clk_time - CLOCK_RECOVERY_PERIOD, info.rate);
+    }
 }
 
 void aes67_io_task(chanend buf_ctl[num_buf_ctl],
@@ -343,27 +374,8 @@ void aes67_io_task(chanend buf_ctl[num_buf_ctl],
                 break;
 
             case tmr when timerafter(ptp_timeout) :> void:
-                if (last_ptp_sync_lock != sync_lock) {
-                    aes67_media_clock_info_t info = ptp_media_clock.info;
-
-                    info.active = sync_lock;
-                    if (info.active) {
-                        unsafe {
-                            aes67_stream_info_t *unsafe s0 = aes67_get_receiver_stream(0);
-                            uint32_t state = s0->state; // atomic read
-
-                            if (state == AES67_STREAM_STATE_POTENTIAL ||
-                                state == AES67_STREAM_STATE_ENABLED) {
-                                COMPILER_BARRIER();
-                                info.rate = s0->sample_rate;
-                            } else {
-                                info.rate = AES67_DEFAULT_SAMPLE_RATE;
-                            }
-                        }
-                    }
-
-                    aes67_set_clock_info(info, clk_time);
-                    last_ptp_sync_lock = sync_lock;
+                unsafe {
+                    handle_sync_lock_or_rate_change(last_ptp_sync_lock, clk_time);
                 }
 
                 if (timeafter(ptp_timeout, clk_time)) {

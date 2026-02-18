@@ -15,6 +15,7 @@ INCLUDE_DIRS = $(EXPORT_INCLUDE_DIRS) $(SOURCE_DIRS)
 XCC_FLAGS_aes67_manager.xc = $(MODULE_XCC_FLAGS) -g -O0
 
 #XCC_FLAGS_media_clock_server.xc = $(MODULE_XCC_FLAGS) -g -O0
+#XCC_FLAGS_media_clock_support.c = $(MODULE_XCC_FLAGS) -g -O0
 
 XCC_FLAGS_rtp_receiver.xc = $(MODULE_XCC_FLAGS) -g -O0
 XCC_FLAGS_rtp_sender.xc = $(MODULE_XCC_FLAGS) -g -O0
