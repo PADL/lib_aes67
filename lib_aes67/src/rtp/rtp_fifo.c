@@ -179,7 +179,8 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
             break;
         case AES67_ENCODING_L24: // 24-bit
             sample = ((uint32_t)sample_ptr[0] << 16) |
-                     ((uint32_t)sample_ptr[1] << 8) | ((uint32_t)sample_ptr[2]);
+                     ((uint32_t)sample_ptr[1] << 8) |
+                     ((uint32_t)sample_ptr[2]);
             sample <<= 8;
             break;
         case AES67_ENCODING_L16: // 16-bit
