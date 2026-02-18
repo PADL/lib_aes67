@@ -18,24 +18,22 @@ typedef enum aes67_fifo_state {
 } aes67_fifo_state_t;
 
 typedef struct aes67_audio_fifo {
-    int zero_flag; // When set, the FIFO will output zero samples instead of its
-                   // contents
-    volatile uint32_t *unsafe dptr;  // The read pointer
-    volatile uint32_t *unsafe wrptr; // The write pointer
-    uint32_t *unsafe marker; // This indicates which sample is the one which the
-                             // timestamps apply to
-    int local_ts; // When a sample is played out, this contains the ref clock
-                  // when it happened
-    uint32_t media_clock;     // RTP media clock
-    uint32_t clock_offset;    // SDP media clock offset
-    uint32_t packet_time;     // SDP packet time in ns
-    uint32_t sample_count; // The count of samples that have passed through the buffer
-    volatile uint32_t *unsafe zero_marker; // Used during zeroing phase
-    aes67_fifo_state_t state;              // State of the FIFO
-    int last_notification_time; // Last time that the clock recovery thread was
-                                // informed of the timestamp info
-    int pending_init_notification; // Flag for pending initialization
-                                   // notification
+    volatile uint32_t *unsafe dptr;         // The read pointer
+    volatile uint32_t *unsafe wrptr;        // The write pointer
+    volatile uint32_t *unsafe marker;       // This indicates which sample is the one which the
+                                            // timestamps apply to
+    uint32_t local_ts;                      // Local time at sample playout
+
+    uint32_t media_clock;                   // RTP media clock
+    uint32_t clock_offset;                  // SDP media clock offset
+    uint32_t packet_time;                   // SDP packet time in ns
+    uint32_t sample_count;                  // The count of samples that have passed through the buffer
+    volatile uint32_t *unsafe zero_marker;
+    aes67_fifo_state_t state;               // State of the FIFO
+    uint32_t last_notification_time;        // Last time that the clock recovery thread was
+                                            // informed of the timestamp info
+    uint8_t pending_init_notification;      // Flag for pending initialization
+    uint8_t zero_flag;                      // When set, the FIFO will output zero samples instead of its contrents
     uint32_t fifo[AUDIO_OUTPUT_FIFO_WORD_SIZE]; // Circular buffer storage
 } aes67_audio_fifo_t;
 
