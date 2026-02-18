@@ -160,9 +160,17 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
     if (fifo->state == AES67_FIFO_DISABLED)
         return;
 
-    fifo->media_clock = media_clock;
-    fifo->clock_offset = clock_offset;
-    fifo->packet_time = packet_time_us * 1000; // packet time in ns
+    if (fifo->marker == NULL) {
+      volatile uint32_t *new_marker = fifo->wrptr;
+
+      if (new_marker >= END_OF_FIFO(fifo))
+          new_marker -= AUDIO_OUTPUT_FIFO_WORD_SIZE;
+
+      fifo->marker = (uint32_t *)new_marker;
+      fifo->media_clock = media_clock;
+      fifo->clock_offset = clock_offset;
+      fifo->packet_time = packet_time_us * 1000; // packet time in ns
+    }
 
     for (size_t i = 0; i < num_frames; i++) {
         switch (encoding) {
