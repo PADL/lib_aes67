@@ -196,6 +196,11 @@ aes67_get_all_receiver_samples(ARRAY_OF_SIZE(uint32_t, samples, len),
                                size_t len,
                                uint32_t local_timestamp);
 
+uint32_t
+aes67_get_receiver_sample(int32_t id,
+                          uint32_t ch,
+                          uint32_t local_timestamp);
+
 // packetizer
 #ifdef __XC__
 void aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
