@@ -51,11 +51,13 @@ uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
 // Timestamp and clock recovery
 void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
                                chanend buf_ctl,
+                               uint32_t media_clock,
+                               uint32_t clock_offset,
+                               uint32_t packet_time_us,
                                int *notified_buf_ctl);
 
 // Buffer control message handling
 void aes67_audio_fifo_handle_buf_ctl_unsafe(uint32_t buf_ctl,
-                                            uint32_t local_ts,
                                             aes67_audio_fifo_t *unsafe fifo,
                                             int *unsafe buf_ctl_notified);
 aes67_fifo_state_t aes67_audio_fifo_get_state(aes67_audio_fifo_t *fifo);
@@ -66,7 +68,4 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t sample_size,
                                    size_t stride,
                                    size_t num_samples,
-                                   uint32_t encoding,
-                                   uint32_t media_clock,
-                                   uint32_t clock_offset,
-                                   uint32_t packet_time_us);
+                                   uint32_t encoding);
