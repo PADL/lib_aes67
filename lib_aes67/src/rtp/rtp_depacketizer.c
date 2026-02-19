@@ -91,11 +91,12 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     return AES67_STATUS_OK;
 }
 
-static void pull_samples(int32_t id,
-                         uint32_t *output_buffer,
-                         size_t *output_index_p,
-                         size_t len,
-                         uint32_t local_timestamp) {
+static void
+pull_samples(int32_t id,
+             uint32_t *output_buffer,
+             size_t *output_index_p,
+             size_t len,
+             uint32_t local_timestamp) {
     aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
     size_t used_channels = stream_info->channel_count;
     size_t output_index = *output_index_p;
@@ -134,19 +135,19 @@ uint32_t
 aes67_get_receiver_sample(int32_t id,
                           uint32_t ch,
                           uint32_t local_timestamp) {
-  aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
+    aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
+    uint32_t sample;
+    int valid;
 
-  if (stream_info->state != AES67_STREAM_STATE_ENABLED ||
-      ch >= AES67_MAX_CHANNELS_PER_RECEIVER)
-    return 0;
+    if (stream_info->state != AES67_STREAM_STATE_ENABLED ||
+        ch >= AES67_MAX_CHANNELS_PER_RECEIVER)
+        return 0;
 
-  int valid;
-  uint32_t sample = aes67_audio_fifo_pull_sample(&receivers[id].fifos[ch], local_timestamp, &valid);
+    sample = aes67_audio_fifo_pull_sample(&receivers[id].fifos[ch], local_timestamp, &valid);
+    if (!valid)
+        sample = 0;
 
-  if (!valid)
-    sample = 0;
-
-  return sample;
+    return sample;
 }
 
 void aes67_get_receiver_samples(int32_t id,

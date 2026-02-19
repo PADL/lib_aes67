@@ -356,12 +356,11 @@ void aes67_io_task(chanend buf_ctl[num_buf_ctl],
                     static int count = 0;
 
                     if (++count == 3) {
-                        debug_printf(
-                            "ERROR: failed to drive PLL freq signal in time\n");
+                        debug_printf("ERROR: failed to drive PLL freq signal in time\n");
                         count = 0;
                     }
                 }
-#endif
+#endif // PLL_OUTPUT_TIMING_CHECK
                 do_media_clock_output(ptp_media_clock, p_fs);
                 break;
 
@@ -390,22 +389,18 @@ void aes67_io_task(chanend buf_ctl[num_buf_ctl],
 #if (AES67_NUM_MEDIA_OUTPUTS != 0)
             case (uint32_t i = 0; i < num_buf_ctl;
                   i++)(fifo_uninit_count == 0) => inuchar_byref(buf_ctl[i], buf_ctl_cmd):
-                int fifo, buf_index;
+                uintptr_t fifo;
+                int buf_index;
 
                 fifo = inuint(buf_ctl[i]);
-                (void)inct(buf_ctl[i]);
+                (void) inct(buf_ctl[i]);
 
                 buf_index = aes67_media_clock_get_buf_info(fifo);
                 assert(buf_index >= 0);
 
-                switch (buf_ctl_cmd) {
-                case BUF_CTL_NOTIFY_STREAM_INFO:
-                    manage_buffer(buf_info[buf_index], buf_ctl[i], buf_index, tmr);
-                    break;
+                if (buf_ctl_cmd == BUF_CTL_NOTIFY_STREAM_INFO)
+                    manage_buffer(buf_info[buf_index], buf_ctl[i], buf_index);
 
-                default:
-                    break;
-                }
                 break;
 #endif // AES67_NUM_MEDIA_OUTPUTS != 0
 
