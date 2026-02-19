@@ -61,10 +61,9 @@ ptp_timestamp_to_media_clock(uint64_t ptp_ts,
 
 static void manage_buffer(buf_info_t &b,
                           chanend buf_ctl,
-                          int index,
-                          timer tmr) {
+                          int index) {
 #if DEBUG_MEDIA_CLOCK
-    static int last_fill;
+    static intptr_t last_fill;
 #endif
     uint32_t media_clock, clock_offset, packet_time;
     uint64_t ptp_ts, ptp_ts_samples;
@@ -100,11 +99,12 @@ static void manage_buffer(buf_info_t &b,
     xscope_int(MEDIA_OUTPUT_FIFO_FILL, fill);
 #endif
 
+    // local_ts is the actual presentation time from the output thread
     ptp_get_local_time_info_mod64(timeInfo);
-    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo) + packet_time;
-
+    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo);
+    // subtract presentation time offset to estimate media clock timestamp
+    ptp_ts -= packet_time * 2;
     ptp_ts_samples = ptp_timestamp_to_media_clock(ptp_ts, ptp_media_clock.info.rate, clock_offset);
-
     sample_diff = (int32_t)ptp_ts_samples - (int32_t)media_clock;
 
 #if DEBUG_MEDIA_CLOCK
