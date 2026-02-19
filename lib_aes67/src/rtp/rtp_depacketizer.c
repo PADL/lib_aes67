@@ -130,6 +130,25 @@ static void pull_samples(int32_t id,
     *output_index_p = output_index;
 }
 
+uint32_t
+aes67_get_receiver_sample(int32_t id,
+                          uint32_t ch,
+                          uint32_t local_timestamp) {
+  aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
+
+  if (stream_info->state != AES67_STREAM_STATE_ENABLED ||
+      ch >= AES67_MAX_CHANNELS_PER_RECEIVER)
+    return 0;
+
+  int valid;
+  uint32_t sample = aes67_audio_fifo_pull_sample(&receivers[id].fifos[ch], local_timestamp, &valid);
+
+  if (!valid)
+    sample = 0;
+
+  return sample;
+}
+
 void aes67_get_receiver_samples(int32_t id,
                                 uint32_t *output_buffer,
                                 size_t len,
