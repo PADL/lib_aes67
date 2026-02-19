@@ -66,27 +66,28 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     if (need_open)
         open_receiver_stream(stream_info, receiver, packet);
 
-    const size_t frame_count = aes67_rtp_packet_length_rtp(packet) / frame_size;
+    // follow ordering of 1722 listener: set timestamp, maintain FIFO, push
+    for (size_t ch = 0; ch < stream_info->channel_count; ch++) {
+        aes67_audio_fifo_maintain(&receiver->fifos[ch], buf_ctl,
+                                  packet->rtp_header.timestamp,
+                                  stream_info->clock_offset,
+                                  stream_info->packet_time_us,
+                                  &receiver->buf_ctl_notified);
+    }
 
     // samples are laid out Frame0[C0C1...CN] ... FrameN[C0C1...CN]
     // payload_ptr points to the first sample for a channel
     // sample_size is used by aes67_audio_fifo_push_samples() to iterate frames
+    const size_t frame_count = aes67_rtp_packet_length_rtp(packet) / frame_size;
     uint8_t *payload_ptr = (uint8_t *)&packet->payload[0];
 
     for (size_t ch = 0; ch < stream_info->channel_count; ch++) {
         aes67_audio_fifo_push_samples(
             &receiver->fifos[ch], payload_ptr, stream_info->sample_size,
             stream_info->channel_count, frame_count,
-            stream_info->encoding,
-            packet->rtp_header.timestamp,
-            stream_info->clock_offset,
-            stream_info->packet_time_us);
+            stream_info->encoding);
         payload_ptr += stream_info->sample_size;
     }
-
-    for (size_t ch = 0; ch < stream_info->channel_count; ch++)
-        aes67_audio_fifo_maintain(&receiver->fifos[ch], buf_ctl,
-                                  &receiver->buf_ctl_notified);
 
     return AES67_STATUS_OK;
 }

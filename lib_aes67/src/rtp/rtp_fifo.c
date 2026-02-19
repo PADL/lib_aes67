@@ -86,10 +86,30 @@ uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
 }
 
 // Maintain FIFO state and notify clock recovery
+// Note: this subsumes the functionality of audio_output_fifo_set_ptp_timestamp()
+// in lib_avb, by also moving the marker pointer if clear
 void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
                                chanend buf_ctl,
+                               uint32_t media_clock,
+                               uint32_t clock_offset,
+                               uint32_t packet_time_us,
                                int *notified_buf_ctl) {
     uint32_t time_since_last_notification;
+
+    if (fifo->marker == NULL) {
+        volatile uint32_t *new_marker = fifo->wrptr;
+
+        if (new_marker >= END_OF_FIFO(fifo))
+            new_marker -= AUDIO_OUTPUT_FIFO_WORD_SIZE;
+
+        fifo->media_clock = media_clock;
+        fifo->clock_offset = clock_offset;
+        fifo->packet_time = packet_time_us * 1000; // packet time in ns
+        fifo->local_ts = 0;
+
+        COMPILER_BARRIER();
+        fifo->marker = new_marker;
+    }
 
     if (fifo->pending_init_notification && *notified_buf_ctl == 0) {
         aes67_notify_buf_ctl_stream_info(buf_ctl, (uintptr_t)fifo);
@@ -100,7 +120,6 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
     switch (fifo->state) {
     case AES67_FIFO_DISABLED:
         break;
-
     case AES67_FIFO_ZEROING:
         if (*fifo->zero_marker == 0) {
             // We have zeroed the entire fifo
@@ -117,19 +136,19 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
             fifo->media_clock = 0;
             fifo->clock_offset = 0;
             fifo->packet_time = 0;
+            fifo->local_ts = 0;
             fifo->marker = NULL;
 #if (OUTPUT_DURING_LOCK == 0)
             fifo->zero_flag = 1;
 #endif
         }
         break;
-
     case AES67_FIFO_LOCKING:
     case AES67_FIFO_LOCKED:
         time_since_last_notification =
             (int32_t)fifo->sample_count - (int32_t)fifo->last_notification_time;
 
-        if (fifo->media_clock != 0 && *notified_buf_ctl == 0 &&
+        if (fifo->media_clock != 0 && fifo->local_ts != 0 && *notified_buf_ctl == 0 &&
             (fifo->last_notification_time == 0 ||
              time_since_last_notification > NOTIFICATION_PERIOD)) {
             aes67_notify_buf_ctl_stream_info(buf_ctl, (uintptr_t)fifo);
@@ -146,28 +165,13 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t sample_size,
                                    size_t stride, // effectively channel count
                                    size_t num_frames,
-                                   uint32_t encoding,
-                                   uint32_t media_clock,
-                                   uint32_t clock_offset,
-                                   uint32_t packet_time_us) {
+                                   uint32_t encoding) {
     volatile uint32_t *wrptr = fifo->wrptr;
     uint32_t sample;
     size_t sample_count = 0;
 
     if (fifo->state == AES67_FIFO_DISABLED)
         return;
-
-    if (fifo->marker == NULL) {
-      volatile uint32_t *new_marker = fifo->wrptr;
-
-      if (new_marker >= END_OF_FIFO(fifo))
-          new_marker -= AUDIO_OUTPUT_FIFO_WORD_SIZE;
-
-      fifo->marker = new_marker;
-      fifo->media_clock = media_clock;
-      fifo->clock_offset = clock_offset;
-      fifo->packet_time = packet_time_us * 1000; // packet time in ns
-    }
 
     for (size_t i = 0; i < num_frames; i++) {
         switch (encoding) {
@@ -215,24 +219,25 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
 
 // Handle buffer control messages
 void aes67_audio_fifo_handle_buf_ctl_unsafe(uint32_t buf_ctl,
-                                            uint32_t local_ts,
                                             aes67_audio_fifo_t *fifo,
                                             int *buf_ctl_notified) {
     int cmd = aes67_get_buf_ctl_cmd(buf_ctl);
 
     switch (cmd) {
-    case BUF_CTL_REQUEST_INFO: {
-        aes67_send_buf_ctl_info(buf_ctl, fifo->state == AES67_FIFO_LOCKED,
-                                fifo->media_clock, fifo->clock_offset, fifo->packet_time,
-                                local_ts,
+    case BUF_CTL_REQUEST_INFO:
+        aes67_send_buf_ctl_info(buf_ctl,
+                                fifo->state == AES67_FIFO_LOCKED,
+                                fifo->media_clock, fifo->clock_offset,
+                                fifo->packet_time, fifo->local_ts,
                                 fifo->dptr - START_OF_FIFO(fifo),
                                 fifo->wrptr - START_OF_FIFO(fifo));
+
         fifo->media_clock = 0;
         fifo->clock_offset = 0;
         fifo->packet_time = 0;
+        fifo->local_ts = 0;
         fifo->marker = NULL;
         break;
-    }
 
     case BUF_CTL_ADJUST_FILL: {
         int adjust = aes67_get_buf_ctl_adjust(buf_ctl);
@@ -250,6 +255,7 @@ void aes67_audio_fifo_handle_buf_ctl_unsafe(uint32_t buf_ctl,
         fifo->media_clock = 0;
         fifo->clock_offset = 0;
         fifo->packet_time = 0;
+        fifo->local_ts = 0;
         fifo->marker = NULL;
         aes67_buf_ctl_ack(buf_ctl);
         *buf_ctl_notified = 0;
