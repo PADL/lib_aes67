@@ -167,6 +167,8 @@ const char *aes67_status_to_string(aes67_status_t status) {
         return "Invalid IP checksum";
     case AES67_STATUS_INVALID_PTP_ADDRESS:
         return "Invalid PTP address";
+    case AES67_STATUS_RTP_PACKET_TOO_OLD:
+        return "RTP packet too old";
     case AES67_STATUS_UNKNOWN_ERROR:
         /* fallthrough */
     default:

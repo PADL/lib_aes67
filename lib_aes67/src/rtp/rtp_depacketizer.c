@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
+// Copyright (c) 2025-2026 PADL Software Pty Ltd. All rights reserved.
 
 #include <xassert.h>
 #include <debug_print.h>
@@ -7,6 +7,8 @@
 
 #include "aes67_internal.h"
 #include "rtp_internal.h"
+#include "ptp_internal.h"
+#include "media_clock_internal.h"
 
 aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id) {
     assert(is_valid_receiver_id(id));
@@ -35,12 +37,15 @@ static void open_receiver_stream(aes67_stream_info_t *stream_info,
 }
 
 aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
+                                        uint32_t local_ts,
                                         int32_t id,
                                         aes67_receiver_t *receiver,
                                         const aes67_rtp_packet_t *packet) {
     aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
     int need_open = 0;
     uint32_t state = stream_info->state; // atomic read
+    uint32_t local_media_clock;
+    int32_t sample_diff;
 
     if (state == AES67_STREAM_STATE_POTENTIAL)
         need_open = 1;
@@ -59,6 +64,22 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     const size_t payload_len = aes67_rtp_payload_length_rtp(packet);
     if ((payload_len % frame_size) != 0)
         return AES67_STATUS_BAD_PACKET_LENGTH;
+
+    // packets may have queued in the interval between the IGMP subscription
+    // being made and the first packet being processed. drop any packets that
+    // are outside our presentation time window.
+    //
+    // note that local_timestamp_to_media_clock() accounts for the packet time
+    // and presentation time offset by adjusting it backwards, so the
+    // difference should be close to zero.
+    local_media_clock =
+        local_timestamp_to_media_clock(local_ts,
+                                       stream_info->sample_rate,
+                                       stream_info->clock_offset,
+                                       stream_info->packet_time_us);
+    sample_diff = media_clock_sub(local_media_clock, packet->rtp_header.timestamp);
+    if (!sync_lock || sample_diff >= AUDIO_OUTPUT_FIFO_WORD_SIZE)
+        return AES67_STATUS_RTP_PACKET_TOO_OLD;
 
     if (!aes67_rtp_update_sequence(&receiver->sequence_state,
                                    packet->rtp_header.sequence))
@@ -93,41 +114,22 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     return AES67_STATUS_OK;
 }
 
-static void
-pull_samples(int32_t id,
+static inline void
+pull_samples(const int32_t id,
              uint32_t *output_buffer,
              size_t *output_index_p,
-             size_t len,
-             uint32_t local_timestamp) {
+             const size_t output_buffer_count,
+             const uint32_t local_timestamp) {
     aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
-    size_t used_channels = stream_info->channel_count;
     size_t output_index = *output_index_p;
-    int valid;
 
-    assert(len <= AES67_NUM_MEDIA_OUTPUTS);
+    if (stream_info->state != AES67_STREAM_STATE_ENABLED)
+        return;
 
-    if (used_channels > AES67_MAX_CHANNELS_PER_RECEIVER)
-        used_channels = AES67_MAX_CHANNELS_PER_RECEIVER;
-
-    for (size_t ch = 0; ch < used_channels && output_index < len; ch++) {
-        if (stream_info->state != AES67_STREAM_STATE_ENABLED)
-            break;
-
-        output_buffer[output_index] = aes67_audio_fifo_pull_sample(
-            &receivers[id].fifos[ch], local_timestamp, &valid);
-        if (!valid)
-            output_buffer[output_index] = 0;
-
-        output_index++;
-    }
-
-    if (output_index <= len) {
-        size_t unused_channels =
-            AES67_MAX_CHANNELS_PER_RECEIVER - used_channels;
-        if (unused_channels)
-            memset(&output_buffer[output_index], 0,
-                   unused_channels * sizeof(uint32_t));
-        output_index += unused_channels;
+    for (size_t ch = 0;
+         ch < stream_info->channel_count && output_index < output_buffer_count;
+         ch++) {
+        output_buffer++[output_index] = aes67_audio_fifo_pull_sample(&receivers[id].fifos[ch], local_timestamp);
     }
 
     *output_index_p = output_index;
@@ -138,18 +140,12 @@ aes67_get_receiver_sample(int32_t id,
                           uint32_t ch,
                           uint32_t local_timestamp) {
     aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
-    uint32_t sample;
-    int valid;
 
     if (stream_info->state != AES67_STREAM_STATE_ENABLED ||
         ch >= AES67_MAX_CHANNELS_PER_RECEIVER)
         return 0;
 
-    sample = aes67_audio_fifo_pull_sample(&receivers[id].fifos[ch], local_timestamp, &valid);
-    if (!valid)
-        sample = 0;
-
-    return sample;
+    return aes67_audio_fifo_pull_sample(&receivers[id].fifos[ch], local_timestamp);
 }
 
 void aes67_get_receiver_samples(int32_t id,
@@ -164,24 +160,24 @@ void aes67_get_receiver_samples(int32_t id,
 // Public function that uses global receivers array (declared in
 // aes67_rtp_receiver.xc)
 void aes67_get_all_receiver_samples(uint32_t *output_buffer,
-                                    size_t len,
+                                    size_t output_buffer_count,
                                     uint32_t local_timestamp) {
     size_t output_index = 0;
 
-    memset(output_buffer, 0, len * sizeof(uint32_t));
-
     for (int32_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
-        pull_samples(id, output_buffer, &output_index, len, local_timestamp);
-        if (output_index > len)
+        pull_samples(id, output_buffer, &output_index, output_buffer_count, local_timestamp);
+        if (output_index > output_buffer_count)
             break;
     }
 }
 
 #ifdef AES67_XMOS
 aes67_status_t aes67_process_rtp_packet_opaque(chanend buf_ctl,
+                                               uint32_t local_ts,
                                                int32_t id,
                                                aes67_receiver_t *receiver,
                                                const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
-    return aes67_process_rtp_packet(buf_ctl, id, receiver, (const aes67_rtp_packet_t *)words);
+    return aes67_process_rtp_packet(buf_ctl, local_ts, id, receiver,
+                                    (const aes67_rtp_packet_t *)words);
 }
 #endif

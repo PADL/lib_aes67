@@ -48,16 +48,12 @@ void aes67_audio_fifo_push_sample(aes67_audio_fifo_t *fifo, uint32_t sample);
 // Pull a sample from the FIFO
 unsafe static inline uint32_t
 aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *unsafe fifo,
-                             uint32_t timestamp,
-                             REFERENCE_PARAM(int, valid)) {
+                             uint32_t timestamp) {
     volatile uint32_t *unsafe dptr = fifo->dptr;
     uint32_t sample;
+    uint8_t valid;
 
-#ifdef __XC__
     valid = (dptr != fifo->wrptr);
-#else
-    *valid = (dptr != fifo->wrptr);
-#endif
 
     if (dptr == fifo->wrptr)
         return 0; // underflow
@@ -73,10 +69,7 @@ aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *unsafe fifo,
 
     fifo->dptr = dptr;
 
-    if (fifo->zero_flag)
-        sample = 0;
-
-    return sample;
+    return (valid && !fifo->zero_flag) ? sample : 0;
 }
 
 // Timestamp and clock recovery

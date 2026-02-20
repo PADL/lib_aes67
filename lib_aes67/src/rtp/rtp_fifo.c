@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <xassert.h>
+#include <xscope.h>
 
 #include "aes67_internal.h"
 #include "media_clock_client.h"
@@ -11,9 +12,6 @@
 
 #define OUTPUT_DURING_LOCK 0
 #define NOTIFICATION_PERIOD 250
-
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 // FIFO initialization
 void aes67_audio_fifo_init(aes67_audio_fifo_t *fifo) {
@@ -75,7 +73,7 @@ void aes67_audio_fifo_maintain(aes67_audio_fifo_t *fifo,
 
         fifo->media_clock = media_clock;
         fifo->clock_offset = clock_offset;
-        fifo->packet_time = packet_time_us * 1000; // packet time in ns
+        fifo->packet_time = packet_time_us;
         fifo->local_ts = 0;
 
         COMPILER_BARRIER();
@@ -139,7 +137,6 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    uint32_t encoding) {
     volatile uint32_t *wrptr = fifo->wrptr;
     uint32_t sample;
-    size_t sample_count = 0;
 
     if (fifo->state == AES67_FIFO_DISABLED)
         return;
@@ -178,14 +175,15 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
         if (new_wrptr != fifo->dptr) {
             *wrptr = sample;
             wrptr = new_wrptr;
+        } else {
+            debug_printf("FIFO %x overflow!\n", fifo);
         }
 
         sample_ptr += sample_size * stride;
-        sample_count++;
     }
 
     fifo->wrptr = wrptr;
-    fifo->sample_count += sample_count;
+    fifo->sample_count += num_frames;
 }
 
 // Handle buffer control messages

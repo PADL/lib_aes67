@@ -105,7 +105,7 @@ typedef struct _aes67_sdp {
 
     char ptp_gmid[24];      // a=ts-refclk
     int ptp_domain;         // a=ts-refclk
-    uint64_t clock_offset;  // a=mediaclk
+    uint32_t clock_offset;  // a=mediaclk
 
     uint32_t framecount;    // a=framecount
     uint32_t sync_time;     // a=sync-time

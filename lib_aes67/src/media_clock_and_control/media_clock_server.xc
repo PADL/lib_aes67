@@ -14,7 +14,7 @@
 #include "rtp_internal.h"
 
 #ifndef DEBUG_MEDIA_CLOCK
-#define DEBUG_MEDIA_CLOCK 1
+#define DEBUG_MEDIA_CLOCK 0
 #endif
 
 #ifndef PLL_OUTPUT_TIMING_CHECK
@@ -23,7 +23,6 @@
 
 #define STABLE_THRESHOLD 32
 #define LOCK_COUNT_THRESHOLD 1000
-#define ACCEPTABLE_FILL_ADJUST 50000
 #define LOST_LOCK_THRESHOLD 1000
 #define MIN_FILL_LEVEL 5
 
@@ -34,6 +33,17 @@
 
 aes67_media_clock_t ptp_media_clock = {{0}};
 
+static inline uint64_t
+relative_ptp_timestamp_to_media_clock(uint64_t ptp_ts, uint32_t rate) {
+    uint64_t ptp_ts_samples;
+
+    // convert computed PTP presentation to a media clock (sample count)
+    ptp_ts_samples = ptp_ts * ((uint64_t)rate / 100);
+    ptp_ts_samples /= ((uint64_t)NANOSECONDS_PER_SECOND / 100);
+
+    return ptp_ts_samples;
+}
+
 uint32_t
 ptp_timestamp_to_media_clock(uint64_t ptp_ts,
                              uint32_t rate,
@@ -41,25 +51,79 @@ ptp_timestamp_to_media_clock(uint64_t ptp_ts,
     uint64_t ptp_ts_samples;
 
     // convert computed PTP presentation to a media clock (sample count)
-    ptp_ts_samples = ptp_ts * ((uint64_t)rate / 100);
-    ptp_ts_samples /= ((uint64_t)NANOSECONDS_PER_SECOND / 100);
+    ptp_ts_samples = relative_ptp_timestamp_to_media_clock(ptp_ts, rate);
     ptp_ts_samples += clock_offset;
     ptp_ts_samples &= 0xffffffff;
 
     return ptp_ts_samples;
 }
 
+static void
+_local_timestamp_to_media_clock(uint32_t local_ts,
+                                uint32_t rate,
+                                uint32_t clock_offset,
+                                uint32_t packet_time,
+                                uint64_t &ptp_ts,
+                                uint32_t &media_clock) {
+    ptp_time_info_mod64 timeInfo;
+
+    // local_ts is the actual presentation time from the output thread
+    ptp_get_local_time_info_mod64(timeInfo);
+    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo);
+
+    // AES67 media clocks represents the sample time, not the presentation time,
+    // so adjust the local time back by the packet time, adding a conservative
+    // 1ms for switch forwarding delays. For a default packet time of 1ms, this
+    // conveniently matches the AVB presentation time offset of 2ms.
+    ptp_ts -= (packet_time + (PRESENTATION_TIME_OFFSET * 1000)) * 1000;
+    media_clock = ptp_timestamp_to_media_clock(ptp_ts, ptp_media_clock.info.rate, clock_offset);
+}
+
+uint32_t
+local_timestamp_to_media_clock(uint32_t local_ts,
+                               uint32_t rate,
+                               uint32_t clock_offset,
+                               uint32_t packet_time) {
+    uint64_t ptp_ts;
+    uint32_t media_clock;
+
+    _local_timestamp_to_media_clock(local_ts, rate, clock_offset,
+                                    packet_time, ptp_ts, media_clock);
+    return media_clock;
+}
+
+static inline uint64_t
+samples_to_nanoseconds(uint32_t samples, uint32_t rate) {
+    uint64_t ns = (uint64_t)samples * ((uint64_t)NANOSECONDS_PER_SECOND / 100ULL);
+    ns /= ((int64_t)rate / 100ULL);
+
+    return ns;
+}
+
+static uint64_t
+ptp_ts_adjusted(uint64_t local_ptp_ts, int32_t sample_diff, uint32_t rate) {
+    const uint64_t period = samples_to_nanoseconds(1, rate);
+    uint64_t local_ptp_ts_quantized;
+
+    // calculate local timestamp at nearest sample boundary
+    local_ptp_ts_quantized = (local_ptp_ts + period / 2) / period * period;
+
+    int64_t sample_diff_ns = samples_to_nanoseconds(sample_diff, rate);
+
+    return local_ptp_ts_quantized + sample_diff_ns;
+}
+
 #if AES67_NUM_MEDIA_OUTPUTS != 0
 
-static void manage_buffer(buf_info_t &b,
-                          chanend buf_ctl,
-                          int index) {
+static void
+manage_buffer(buf_info_t &b, chanend buf_ctl, int index) {
+    const int32_t acceptable_fill_adjust = ptp_media_clock.info.rate;
 #if DEBUG_MEDIA_CLOCK
     static intptr_t last_fill;
 #endif
     uint32_t media_clock, clock_offset, packet_time;
-    uint64_t ptp_ts, ptp_ts_samples;
-    ptp_time_info_mod64 timeInfo;
+    uint64_t ptp_ts;
+    uint32_t ptp_ts_samples;
     int fifo_locked;
     int32_t sample_diff;
     uint32_t wordLength;
@@ -76,7 +140,7 @@ static void manage_buffer(buf_info_t &b,
         buf_ctl :> fifo_locked;
         buf_ctl :> media_clock;
         buf_ctl :> clock_offset;
-        buf_ctl :> packet_time;
+        buf_ctl :> packet_time; // packet time in us
         buf_ctl :> local_ts;
         buf_ctl :> rdptr;
         buf_ctl :> wrptr;
@@ -91,13 +155,18 @@ static void manage_buffer(buf_info_t &b,
     xscope_int(MEDIA_OUTPUT_FIFO_FILL, fill);
 #endif
 
-    // local_ts is the actual presentation time from the output thread
-    ptp_get_local_time_info_mod64(timeInfo);
-    ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo);
-    // subtract presentation time offset to estimate media clock timestamp
-    ptp_ts -= packet_time * 2;
-    ptp_ts_samples = ptp_timestamp_to_media_clock(ptp_ts, ptp_media_clock.info.rate, clock_offset);
-    sample_diff = (int32_t)ptp_ts_samples - (int32_t)media_clock;
+    _local_timestamp_to_media_clock(local_ts, ptp_media_clock.info.rate,
+                                    clock_offset, packet_time, ptp_ts, ptp_ts_samples);
+
+    sample_diff = media_clock_sub(ptp_ts_samples, media_clock);
+
+    // because we only support a single, PTP-derived media clock, we always use
+    // index zero for that; of course, this does require that the application
+    // use this index.
+    if (index == 0) {
+        const uint64_t media_clock_ptp_ts = ptp_ts_adjusted(ptp_ts, sample_diff, ptp_media_clock.info.rate);
+        aes67_update_media_clock_info(fifo_locked, local_ts, ptp_ts, media_clock_ptp_ts);
+    }
 
 #if DEBUG_MEDIA_CLOCK
     if (fifo_locked) {
@@ -114,17 +183,17 @@ static void manage_buffer(buf_info_t &b,
         buf_ctl <: index;
         buf_ctl <: BUF_CTL_ACK;
         inct(buf_ctl);
+#if DEBUG_MEDIA_CLOCK
         debug_printf("clock not locked yet\n");
+#endif
         return;
     }
 
     if (fifo_locked && b.lock_count < LOCK_COUNT_THRESHOLD)
         b.lock_count++;
 
-    if (sample_diff < ACCEPTABLE_FILL_ADJUST &&
-        sample_diff > -ACCEPTABLE_FILL_ADJUST &&
-        (sample_diff - b.prev_diff <= 1 &&
-         sample_diff - b.prev_diff >= -1)) {
+    if (abs32(sample_diff) < acceptable_fill_adjust &&
+        abs32(sample_diff - b.prev_diff) <= 1) {
         b.stability_count++;
     } else {
         b.stability_count = 0;
@@ -205,9 +274,8 @@ update_media_clock_divide(aes67_media_clock_t &clk) {
     clk.baseLengthRemainder = divWordLength & ((1 << WC_FRACTIONAL_BITS) - 1);
 }
 
-static void init_media_clock(aes67_media_clock_t &clk,
-                             timer tmr,
-                             out buffered port:32 p) {
+static void
+init_media_clock(aes67_media_clock_t &clk, timer tmr, out buffered port:32 p) {
     int ptime, time;
 
     clk.info.active = 0;
@@ -225,8 +293,8 @@ static void init_media_clock(aes67_media_clock_t &clk,
         time + INITIAL_MEDIA_CLOCK_OUTPUT_DELAY + EVENT_AFTER_PORT_OUTPUT_DELAY;
 }
 
-static void do_media_clock_output(aes67_media_clock_t &clk,
-                                  out buffered port:32 p) {
+static void
+do_media_clock_output(aes67_media_clock_t &clk, out buffered port:32 p) {
     const unsigned int one = (1 << WC_FRACTIONAL_BITS);
     const unsigned mult = PLL_TO_WORD_MULTIPLIER / (2 * INTERNAL_CLOCK_DIVIDE);
 
@@ -249,17 +317,34 @@ static void do_media_clock_output(aes67_media_clock_t &clk,
     p @ clk.wordTime <: clk.bit;
 }
 
-static void update_media_clocks(const uint32_t clk_time,
-                                const aes67_media_clock_pid_coefficients_t &pid_coefficients) {
-    if (!ptp_media_clock.info.active)
-      return;
+void
+aes67_update_sender_media_clock_info(const uint32_t clk_time) {
+    ptp_time_info_mod64 timeInfo;
+    uint64_t ptp_ts;
 
-    ptp_media_clock.wordLength = aes67_update_media_clock(clk_time, pid_coefficients);
+    if (!sync_lock)
+        return;
 
-    update_media_clock_divide(ptp_media_clock);
+    // convert current timestamp to a PTP timestamp
+    ptp_get_local_time_info_mod64(timeInfo);
+    ptp_ts = local_timestamp_to_ptp_mod64(clk_time, timeInfo);
+
+    // quantise PTP timestamp to media clock edge
+    uint64_t nearest_media_clock_ptp_ts = ptp_ts_adjusted(ptp_ts, 0, ptp_media_clock.info.rate);
+    aes67_update_media_clock_info(TRUE, clk_time, ptp_ts, nearest_media_clock_ptp_ts);
 }
 
-aes67_media_clock_info_t aes67_get_clock_info(void) {
+static void
+update_media_clocks(const uint32_t clk_time,
+                    const aes67_media_clock_pid_coefficients_t &pid_coefficients) {
+    if (ptp_media_clock.info.active) {
+        ptp_media_clock.wordLength = aes67_update_media_clock(pid_coefficients);
+        update_media_clock_divide(ptp_media_clock);
+    }
+}
+
+aes67_media_clock_info_t
+aes67_get_clock_info(void) {
     return ptp_media_clock.info;
 }
 
@@ -292,18 +377,19 @@ handle_sync_lock_or_rate_change(int &last_ptp_sync_lock, const uint32_t clk_time
                      ptp_media_clock.info.active, info.active,
                      ptp_media_clock.info.rate, info.rate);
         ptp_media_clock.info = info;
-        aes67_init_media_clock_recovery(clk_time - CLOCK_RECOVERY_PERIOD, info.rate);
+        aes67_init_media_clock_recovery(info.rate);
     }
 }
 
-void aes67_io_task(chanend buf_ctl[num_buf_ctl],
-                   uint32_t num_buf_ctl,
-                   out buffered port:32 p_fs,
-                   REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t, pid_coefficients),
-                   chanend media_control,
-                   client interface ethernet_cfg_if i_eth_cfg,
-                   client xtcp_if i_xtcp,
-                   uint32_t flags) {
+void
+aes67_io_task(chanend buf_ctl[num_buf_ctl],
+              uint32_t num_buf_ctl,
+              out buffered port:32 p_fs,
+              REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t, pid_coefficients),
+              chanend media_control,
+              client interface ethernet_cfg_if i_eth_cfg,
+              client xtcp_if i_xtcp,
+              uint32_t flags) {
     timer tmr;
     uint32_t ptp_timeout;
     uint32_t clk_time;

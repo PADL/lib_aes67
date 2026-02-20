@@ -47,17 +47,32 @@ ptp_timestamp_to_media_clock(uint64_t ptp_ts,
                              uint32_t rate,
                              uint32_t clock_offset);
 
+uint32_t
+local_timestamp_to_media_clock(uint32_t local_ts,
+                               uint32_t rate,
+                               uint32_t clock_offset,
+                               uint32_t packet_time);
+
 #define WC_FRACTIONAL_BITS 16
 
 // The number of ticks between period clock recovery checks
 #define CLOCK_RECOVERY_PERIOD (1 << 21)
 
-void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate);
+void aes67_init_media_clock_recovery(uint32_t rate);
 
-uint32_t aes67_update_media_clock(
-    const uint32_t t2,
-    REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t,
-                    pid_coefficients));
+void
+aes67_update_sender_media_clock_info(const uint32_t clk_time);
+
+// update actual and expected presentation timestamps from buffer manager thread
+void
+aes67_update_media_clock_info(uint8_t fifo_locked,
+                              uint32_t local_ts,
+                              uint32_t local_ptp_ts,
+                              uint32_t media_clock_ptp_ts);
+
+uint32_t
+aes67_update_media_clock(REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t,
+                                         pid_coefficients));
 
 static inline uint64_t abs64(int64_t value) {
   const int64_t mask = value >> 63;
@@ -67,4 +82,12 @@ static inline uint64_t abs64(int64_t value) {
 static inline uint32_t abs32(int32_t value) {
   const int32_t mask = value >> 31;
   return (value + mask) ^ mask;
+}
+
+static inline int32_t media_clock_sub(uint32_t value1, uint32_t value2) {
+    return (int32_t)((int64_t)value1 - (int64_t)value2);
+}
+
+static inline int32_t media_clock_add(uint32_t value1, uint32_t value2) {
+    return (int32_t)((int64_t)value1 + (int64_t)value2);
 }
