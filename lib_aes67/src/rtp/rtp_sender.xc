@@ -175,8 +175,11 @@ void aes67_submit_sender_samples(chanend data_ready,
         sender.pending_ts = timestamp;
 
 #pragma unsafe arrays
-    for (size_t i = 0; i < len; i++)
-        tx_wrbuffer[id][sample_count++] = samples[i];
+    for (size_t i = 0;
+         i < len && sample_count < sender.samples_per_packet;
+         i++, sample_count++) {
+        tx_wrbuffer[id][sample_count] = samples[i];
+    }
 
     if (sample_count == sender.samples_per_packet) {
         // Check sender is still open before signaling (avoid race with stream removal)
