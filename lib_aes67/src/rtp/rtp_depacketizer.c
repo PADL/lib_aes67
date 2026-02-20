@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
+// Copyright (c) 2025-2026 PADL Software Pty Ltd. All rights reserved.
 
 #include <xassert.h>
 #include <debug_print.h>
@@ -7,6 +7,8 @@
 
 #include "aes67_internal.h"
 #include "rtp_internal.h"
+#include "ptp_internal.h"
+#include "media_clock_internal.h"
 
 aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id) {
     assert(is_valid_receiver_id(id));
@@ -35,12 +37,15 @@ static void open_receiver_stream(aes67_stream_info_t *stream_info,
 }
 
 aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
+                                        uint32_t local_ts,
                                         int32_t id,
                                         aes67_receiver_t *receiver,
                                         const aes67_rtp_packet_t *packet) {
     aes67_stream_info_t *stream_info = aes67_get_receiver_stream(id);
     int need_open = 0;
     uint32_t state = stream_info->state; // atomic read
+    uint32_t local_media_clock;
+    int32_t sample_diff;
 
     if (state == AES67_STREAM_STATE_POTENTIAL)
         need_open = 1;
@@ -59,6 +64,22 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     const size_t payload_len = aes67_rtp_payload_length_rtp(packet);
     if ((payload_len % frame_size) != 0)
         return AES67_STATUS_BAD_PACKET_LENGTH;
+
+    // packets may have queued in the interval between the IGMP subscription
+    // being made and the first packet being processed. drop any packets that
+    // are outside our presentation time window.
+    //
+    // note that local_timestamp_to_media_clock() accounts for the packet time
+    // and presentation time offset by adjusting it backwards, so the
+    // difference should be close to zero.
+    local_media_clock =
+        local_timestamp_to_media_clock(local_ts,
+                                       stream_info->sample_rate,
+                                       stream_info->clock_offset,
+                                       stream_info->packet_time_us);
+    sample_diff = media_clock_sub(local_media_clock, packet->rtp_header.timestamp);
+    if (!sync_lock || sample_diff >= AUDIO_OUTPUT_FIFO_WORD_SIZE)
+        return AES67_STATUS_RTP_PACKET_TOO_OLD;
 
     if (!aes67_rtp_update_sequence(&receiver->sequence_state,
                                    packet->rtp_header.sequence))
@@ -179,9 +200,11 @@ void aes67_get_all_receiver_samples(uint32_t *output_buffer,
 
 #ifdef AES67_XMOS
 aes67_status_t aes67_process_rtp_packet_opaque(chanend buf_ctl,
+                                               uint32_t local_ts,
                                                int32_t id,
                                                aes67_receiver_t *receiver,
                                                const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE_WORDS]) {
-    return aes67_process_rtp_packet(buf_ctl, id, receiver, (const aes67_rtp_packet_t *)words);
+    return aes67_process_rtp_packet(buf_ctl, local_ts, id, receiver,
+                                    (const aes67_rtp_packet_t *)words);
 }
 #endif

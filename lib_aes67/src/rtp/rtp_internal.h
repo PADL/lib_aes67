@@ -21,6 +21,7 @@ extern aes67_receiver_t receivers[NUM_AES67_RECEIVERS];
 #ifndef __XC__
 aes67_status_t
 aes67_process_rtp_packet(chanend buf_ctl,
+                         uint32_t local_ts,
                          int32_t id,
                          REFERENCE_PARAM(aes67_receiver_t, receiver),
                          REFERENCE_PARAM(const aes67_rtp_packet_t, packet));
@@ -28,6 +29,7 @@ aes67_process_rtp_packet(chanend buf_ctl,
 
 aes67_status_t
 aes67_process_rtp_packet_opaque(chanend buf_ctl,
+                                uint32_t local_ts,
                                 int32_t id,
                                 REFERENCE_PARAM(aes67_receiver_t, receiver),
                                 const uint32_t words[AES67_RTP_PACKET_STRUCT_SIZE / 4]);

@@ -165,7 +165,7 @@ static void sdp_attribute_parse(aes67_sdp_t *sdp, char *line, int line_num) {
 
         if (mediaclk_type && strcmp(mediaclk_type, "direct") == 0) {
             if (clock_offset) {
-                sdp->clock_offset = atoll(clock_offset);
+                sdp->clock_offset = atoll(clock_offset) & 0xffffffff;
             }
         } else {
             aes67_warn("SDP Media Clock is not set to direct: %s",
@@ -434,7 +434,7 @@ aes67_sdp_to_string(const aes67_sdp_t *sdp, char *buffer, size_t buflen) {
                        "a=rtpmap:%d L%d/%d/%d\r\n"
                        "a=ptime:%f\r\n"
                        "a=ts-refclk:ptp=IEEE1588-2008:%s%s\r\n"
-                       "a=mediaclk:direct=%llu\r\n",
+                       "a=mediaclk:direct=%lu\r\n",
                        /* o= */ sdp->session_id, sdp->session_id,
                        ip6Origin ? "IP6" : "IP4", sdp->session_origin,
                        /* s= */ sdp->session_name,

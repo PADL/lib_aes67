@@ -19,101 +19,172 @@
 // bits before the PTP clock recovery multiplication overflows
 #define WORDLEN_FRACTIONAL_BITS 24
 
-#define MAX_ERROR_TOLERANCE 500
-
 typedef struct _pid_error_t {
     int64_t p, i, d;
 } pid_error_t;
 
-static inline void pid_error_init(pid_error_t *error) {
+static inline void
+pid_error_init(pid_error_t *error) {
     error->p = error->i = error->d = 0;
 }
 
-/**
- * \brief Records the state of the clock recovery for one media clock
- */
+typedef struct _timestamp_info_t {
+    uint32_t local;                    // local timestamp in ticks
+    uint32_t actual;                   // local PTP timestamp mod 32
+    uint32_t expected;                 // media clock PTP timestamp mod 32
+} timestamp_info_t;
+
+static inline void
+timestamp_info_init(timestamp_info_t *info) {
+    info->local = info->actual = info->expected = 0;
+}
+
+static inline uint8_t
+timestamp_info_valid(const timestamp_info_t *info) {
+    return !!info->local;
+}
+
 typedef struct _clock_info_t {
-    uint32_t t1;                       // Previous local timestamp
-    uint64_t wordlen_40_24;            // Sample period in ticks, as 40.24 fixed point integer
-    pid_error_t error;                 // Accumulated/last error
-    uint32_t rate;                     // Sample rate (Hz)
-    uint64_t ptp1;                     // Actual PTP nanoseconds at t1
+    uint64_t wordlen_40_24;         // sample period in ticks, as 40.24 fixed point integer
+    pid_error_t error;              // accumulated/last error
+    uint32_t rate;                  // sample rate (Hz)
+
+    timestamp_info_t t2;            // timestamp at t2
+    timestamp_info_t t1;            // timestamp at t1
+
+    unsigned int first;
+    unsigned int locked;
 } clock_info_t;
 
+// the global PTP media clock
 static clock_info_t ptp_clock_info;
 
-/**
- * Converts the internal 64 bit wordlen into an external 32 bit wordlen
- */
-static inline uint32_t wordlen_40_24_to_wordlen_16_16(uint64_t w_40_24) {
+// convert internal 64-bit wordlen to external 32-bit wordlen
+static inline uint32_t
+wordlen_40_24_to_wordlen_16_16(uint64_t w_40_24) {
     return (w_40_24 >> (WORDLEN_FRACTIONAL_BITS - WC_FRACTIONAL_BITS));
 }
 
-/**
- * Calculates expected local wordlen (sample period) for a given rate,
- * expressed as a 40.24 fixed point integer.
- */
-static inline uint64_t calculate_wordlen_40_24(uint32_t sample_rate) {
+// calculates expected local wordlen (sample period) for a given rate,
+// expressed as a 40.24 fixed point integer.
+static inline uint64_t
+calculate_wordlen_40_24(uint32_t sample_rate) {
     const uint64_t timer_ticks_per_second = ((uint64_t)TIMER_TICKS_PER_SEC << WORDLEN_FRACTIONAL_BITS);
     return (timer_ticks_per_second / sample_rate);
 }
 
-void aes67_init_media_clock_recovery(uint32_t clk_time, uint32_t rate) {
+void
+aes67_init_media_clock_recovery(uint32_t rate) {
     clock_info_t *clock_info = &ptp_clock_info;
-    ptp_time_info_mod64 timeInfo;
 
     clock_info->rate = rate;
     pid_error_init(&clock_info->error);
     clock_info->wordlen_40_24 = rate ? calculate_wordlen_40_24(clock_info->rate) : 0;
 
-    clock_info->t1 = clk_time;
+    timestamp_info_init(&clock_info->t2);
+    timestamp_info_init(&clock_info->t1);
 
-    ptp_get_local_time_info_mod64(&timeInfo);
-    clock_info->ptp1 = local_timestamp_to_ptp_mod64(clk_time, &timeInfo);
+    clock_info->first = TRUE;
+    clock_info->locked = FALSE;
 }
 
-uint32_t
-aes67_update_media_clock(const uint32_t t2,
-                         const aes67_media_clock_pid_coefficients_t *pid_coefficients) {
+void
+aes67_update_media_clock_info(uint8_t locked,
+                              uint32_t local_ts,
+                              uint32_t local_ptp_ts,
+                              uint32_t media_clock_ptp_ts) {
     clock_info_t *clock_info = &ptp_clock_info;
-    const int64_t diff_local = (int64_t)t2 - (int64_t)clock_info->t1;
 
-    if (abs64(diff_local) < 100)
-      return wordlen_40_24_to_wordlen_16_16(clock_info->wordlen_40_24);
+    // because local is used to atomically test validity, ensure that it is
+    // never zero (at the expenese of 10ns jitter on rollover)
+    clock_info->t2.local = local_ts ? local_ts : 1;
+    clock_info->t2.actual = local_ptp_ts;
+    clock_info->t2.expected = media_clock_ptp_ts;
 
-    ptp_time_info_mod64 timeInfo;
-    pid_error_t error;
-    uint64_t ptp2;
+    clock_info->locked = locked;
+}
 
-    pid_error_init(&error);
-    ptp_get_local_time_info_mod64(&timeInfo);
-    ptp2 = local_timestamp_to_ptp_mod64(t2, &timeInfo);
+//
+// some notes on clock recovery
+//
+// lib_tsn performs stream-based clock recovery, where the phase error is the
+// presentation time - the current time (expressed in the PTP time base). The
+// current time is always sampled at the PLL clock edge (or as close as
+// possible).
+//
+// AES67 uses sample time rather than presentation time, but the effect is the
+// same (simply requiring the local time to be adjusted backwards by the
+// expected presentation time offset).
+//
+// phase error = t2.expected - t2.actual
+//
+// the old PTP media clock recovery code (since deleted) calculated the phase
+// error as the difference between the PTP and local deltas (expressed in PTP
+// time base), where the delta is between PID invocations. This has the
+// advantage that it can run in a sender-only configuration, but it does not
+// incorporate any feedback from the PLL.
+//
+// PTP delta = t2.actual - t1.actual
+// local delta = t2.local - t1.local
+// phase error = ptp_delta - local delta * NANOSECONDS_PER_TICK
+//
+// note in both cases the phase error is divided by PID sample period
+// (local delta) to decouple the PID coefficients from the sample period
+//
 
-    const int64_t diff_ptp = (int64_t)ptp2 - (int64_t)clock_info->ptp1;
+static int pid_debug_counter;
+#define DEBUG_INTERVAL 200
 
-    // error expressed in _nanoseconds_ as a 40.24 fixed-point integer (10ns per tick)
-    error.i = (diff_ptp * clock_info->wordlen_40_24) - (diff_local * clock_info->wordlen_40_24 * 10);
-    error.i = (error.i << WORDLEN_FRACTIONAL_BITS) / clock_info->wordlen_40_24;
+#define PID_MAX_CORRECTION 5000
 
-    if (abs64(error.i >> WORDLEN_FRACTIONAL_BITS) > MAX_ERROR_TOLERANCE) {
-        debug_printf("aes67_update_media_clock: resetting PID, error %d!\n", error.i >> WORDLEN_FRACTIONAL_BITS);
-        clock_info->wordlen_40_24 = calculate_wordlen_40_24(clock_info->rate);
-        pid_error_init(&clock_info->error);
-    } else {
-        error.p = error.i - clock_info->error.i;
-        error.d = pid_coefficients->d_numerator ? (error.p - clock_info->error.p) : 0;
+uint32_t
+aes67_update_media_clock(const aes67_media_clock_pid_coefficients_t *pid_coefficients) {
+    clock_info_t *clock_info = &ptp_clock_info;
 
-        clock_info->error.p = error.p & ~(0xff); // mask scheduler noise
-        clock_info->error.i = error.i;
+    if (timestamp_info_valid(&clock_info->t2)) {
+        if (timestamp_info_valid(&clock_info->t1)) {
+            if (likely(clock_info->locked)) {
+                const int64_t pid_period = (int64_t)clock_info->t2.local - (int64_t)clock_info->t1.local;
+                pid_error_t error;
 
-        clock_info->wordlen_40_24 -=
-            ((error.p / diff_local) * pid_coefficients->p_numerator) / pid_coefficients->p_denominator +
-            ((error.i / diff_local) * pid_coefficients->i_numerator) / pid_coefficients->i_denominator +
-            ((error.d / diff_local) * pid_coefficients->d_numerator) / pid_coefficients->d_denominator;
+                pid_error_init(&error);
+                error.i = (int64_t)clock_info->t2.expected - (int64_t)clock_info->t2.actual;
+                error.i <<= 10;
+
+                if (!clock_info->first) {
+                    error.p = error.i - clock_info->error.i;
+                    error.d = pid_coefficients->d_numerator ? (error.p - clock_info->error.p) : 0;
+
+                    const int64_t wl_correction =
+                        ((error.p / pid_period) * pid_coefficients->p_numerator) / pid_coefficients->p_denominator +
+                        ((error.i / pid_period) * pid_coefficients->i_numerator) / pid_coefficients->i_denominator +
+                        ((error.d / pid_period) * pid_coefficients->d_numerator) / pid_coefficients->d_denominator;
+                    if (abs64(wl_correction) >= PID_MAX_CORRECTION) // skip outliers
+                        goto reset_pid;
+
+#if DEBUG_INTERVAL
+                    if ((pid_debug_counter++ % DEBUG_INTERVAL) == 0)
+                        debug_printf("PID: ierror %d perror %d (unadjusted); correction %d\n",
+                                     (int32_t)error.i, (int32_t)error.p, (int32_t)wl_correction);
+#endif
+                    clock_info->wordlen_40_24 -= wl_correction;
+                } else {
+                    clock_info->first = FALSE;
+                }
+
+                clock_info->error.p = error.p;
+                clock_info->error.i = error.i;
+            } else {
+reset_pid:
+                clock_info->wordlen_40_24 = calculate_wordlen_40_24(clock_info->rate);
+                pid_error_init(&clock_info->error);
+                clock_info->first = TRUE;
+            }
+        }
+
+        clock_info->t1 = clock_info->t2;
+        clock_info->t2.local = 0; // atomically mark t2 invalid
     }
-
-    clock_info->t1 = t2;
-    clock_info->ptp1 = ptp2;
 
     return wordlen_40_24_to_wordlen_16_16(clock_info->wordlen_40_24);
 }
@@ -143,30 +214,12 @@ void aes67_register_buf_fifo(uint32_t i, uintptr_t fifo) {
 #endif
 
 // PID coefficients for various clock chips
-
-aes67_media_clock_pid_coefficients_t cs2100_pid_coefficients = {
-    .p_numerator = 100,   // Increased P gain: 100/11 ≈ 9.09 for faster response
-    .p_denominator = 11,
-    .i_numerator = 1,     // Reduced I gain: 1/20 = 0.05 to prevent windup
-    .i_denominator = 20,
-    .d_numerator = 1,     // Added small D term: 1/10 = 0.1 for stability
-    .d_denominator = 10
-};
-
-aes67_media_clock_pid_coefficients_t cs2300_pid_coefficients = {
-    .p_numerator = 32,    // Original CS2300 P gain: 32/1 = 32
-    .p_denominator = 1,
-    .i_numerator = 1,     // Original CS2300 I gain: 1/4 = 0.25
-    .i_denominator = 4,
-    .d_numerator = 0,     // Original CS2300 had no D term
-    .d_denominator = 1
-};
-
+// TODO: re-add coefficients for CS2100/CS2300 when we have tested
 aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
-    .p_numerator = 512,
+    .p_numerator = 5,
     .p_denominator = 1,
     .i_numerator = 1,
-    .i_denominator = 4,
+    .i_denominator = 100,
     .d_numerator = 0,
     .d_denominator = 1
 };

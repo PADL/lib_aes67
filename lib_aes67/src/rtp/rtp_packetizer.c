@@ -9,6 +9,7 @@
 #include "aes67_utils.h"
 #include "ptp_internal.h"
 #include "rtp_internal.h"
+#include "media_clock_internal.h"
 
 // Convert local XMOS timestamp to RTP media clock
 // Local XMOS timestamp -> PTP timestamp -> RTP media clock (based on sample
@@ -18,20 +19,14 @@ local_timestamp_to_rtp_media_clock(uint32_t local_timestamp,
                                    const aes67_stream_info_t *stream_info) {
     ptp_time_info_mod64 timeInfo;
     uint32_t ptp_timestamp_ns;
-    uint64_t rtp_media_clock;
 
     // Get PTP time info and convert local timestamp to PTP nanoseconds
     ptp_get_local_time_info_mod64(&timeInfo);
     ptp_timestamp_ns = local_timestamp_to_ptp_mod32(local_timestamp, &timeInfo);
 
-    // Convert PTP nanoseconds to RTP media clock units (sample rate)
-    // PTP timestamp is in nanoseconds, we need to convert to sample rate
-    // Formula: rtp_media_clock = (ptp_ns * sample_rate) /
-    // NANOSECONDS_PER_SECOND
-    rtp_media_clock = ((uint64_t)ptp_timestamp_ns * stream_info->sample_rate) /
-                      NANOSECONDS_PER_SECOND;
-
-    return rtp_media_clock;
+    return ptp_timestamp_to_media_clock(ptp_timestamp_ns,
+                                        stream_info->sample_rate,
+                                        stream_info->clock_offset);
 }
 
 static void rtp_packet_header_init(const aes67_stream_info_t *stream_info,

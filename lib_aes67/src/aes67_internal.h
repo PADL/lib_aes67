@@ -49,6 +49,9 @@
 
 #define COMPILER_BARRIER() asm volatile("" ::: "memory")
 
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 // from lib_tsn ethernet_conf.h
 #define NUM_ETHERNET_PORTS 1
 #define NUM_ETHERNET_MASTER_PORTS 1
@@ -69,6 +72,11 @@
 #define AUDIO_OUTPUT_FIFO_WORD_SIZE                                            \
     (AES67_MAX_AUDIO_SAMPLE_RATE / 50) // 20ms buffer per AES67 spec
 #endif
+
+// offset, in ms, from the _last_ sample in the packet to the presentation
+// time. this is added to the packet time in order to determine the
+// presentation time.
+#define PRESENTATION_TIME_OFFSET (1)
 
 #ifndef TRUE
 #define TRUE (1)
@@ -170,7 +178,7 @@ typedef struct _aes67_stream_info {
     uint16_t dest_port;
     uint16_t gm_port;
     n64_t gm_id;
-    uint64_t clock_offset;
+    uint32_t clock_offset;
 } aes67_stream_info_t;
 
 extern aes67_stream_info_t receiver_streams[NUM_AES67_RECEIVERS];

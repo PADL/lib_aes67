@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
+// Copyright (c) 2025-2026 PADL Software Pty Ltd. All rights reserved.
 
 #include <xassert.h>
 #include <string.h>
@@ -9,6 +9,7 @@
 #include "aes67_utils.h"
 #include "rtp_internal.h"
 #include "ptp_internal.h"
+#include "media_clock_internal.h"
 
 aes67_sender_t senders[NUM_AES67_SENDERS];
 
@@ -42,7 +43,7 @@ aes67_poll_stream_info_changed(uint32_t time,
                 sender.socket.dest_port = stream_info.dest_port;
                 sender.sequence_state.max_seq = time & 0xffff;
                 sender.media_clock = 0;
-                sender.frames_per_packet = (stream_info.sample_rate / 1000000) * stream_info.packet_time_us;
+                sender.frames_per_packet = ((stream_info.sample_rate / 100) * stream_info.packet_time_us) / 10000;
                 sender.samples_per_packet = sender.frames_per_packet * stream_info.channel_count;
             }
             if (sender.socket.fd == -1 || src_ipaddr_changed) {
@@ -116,6 +117,10 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                 data_ready :> tmp;
 
                 swapPointer(tx_rdbuffer[id], tmp);
+
+#if NUM_AES67_RECEIVERS == 0
+                aes67_update_sender_media_clock_info(timestamp);
+#endif
 
                 // send RTP packet
                 aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, id, tx_rdbuffer[id],

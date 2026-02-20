@@ -156,6 +156,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
             case i_xtcp.event_ready():
                 xtcp_event_type_t event;
                 aes67_socket_t *socket;
+                uint32_t local_ts;
                 int32_t fd, id;
 
                 event = i_xtcp.get_event(fd);
@@ -165,66 +166,71 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
 
                 aes67_receiver_t &receiver = receivers[id];
 
+                t :> local_ts;
+
                 if (aes67_rtp_recv_opaque(i_xtcp, &receivers[id].socket, pbuf.words) == 0) {
                     aes67_status_t status;
 
-                    status = aes67_process_rtp_packet_opaque(buf_ctl, id, receiver, pbuf.words);
+                    status = aes67_process_rtp_packet_opaque(buf_ctl, local_ts, id, receiver, pbuf.words);
 #if DEBUG_RTP
-                    if (status != AES67_STATUS_OK)
+                    if (status != AES67_STATUS_OK && status != AES67_STATUS_RTP_PACKET_TOO_OLD)
                         debug_printf("RTP packet error: %s\n", aes67_status_to_string(status));
 #endif
                 }
                 break;
 
-                // note: offset of 2 is for alignment, ensures remainder of PDU is 4 byte aligned
-                case !isnull(c_eth_rx_hp) => ethernet_receive_hp_packet(c_eth_rx_hp, &pbuf.octets[2], packet_info):
-                    // Parse IP header to extract destination address, it may be junk but we'll parse properly later
-                    uint32_t dest_ip_host = aes67_rtp_packet_get_dest_ip_opaque(pbuf.words);
-                    int32_t id;
+            // note: offset of 2 is for alignment, ensures remainder of PDU is 4 byte aligned
+            case !isnull(c_eth_rx_hp) => ethernet_receive_hp_packet(c_eth_rx_hp, &pbuf.octets[2], packet_info):
+                // Parse IP header to extract destination address, it may be junk but we'll parse properly later
+                uint32_t dest_ip_host = aes67_rtp_packet_get_dest_ip_opaque(pbuf.words);
+                uint32_t local_ts;
+                int32_t id;
 
-                    // Find receiver with matching destination address
-                    for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
-                        assert(receivers[id].socket.fd != -1 || receivers[id].socket.dest_addr != 0);
+                // Find receiver with matching destination address
+                for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
+                    assert(receivers[id].socket.fd != -1 || receivers[id].socket.dest_addr != 0);
 
-                        if (receivers[id].socket.fd == -1)
-                            continue;
-                        else if (dest_ip_host == xtcp_ipaddr_to_host_uint32(receivers[id].socket.dest_addr))
-                            break;
-                    }
-
-                    if (id == NUM_AES67_RECEIVERS)
-                        break; // packet not for a stream that has been registered (yet)
-
-                    aes67_receiver_t &receiver = receivers[id];
-                    aes67_status_t status = aes67_rtp_parse_raw_opaque(receiver.socket, packet_info, pbuf.words);
-                    if (status != AES67_STATUS_OK) {
-#if DEBUG_RTP
-                        debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
-#endif
+                    if (receivers[id].socket.fd == -1)
+                        continue;
+                    else if (dest_ip_host == xtcp_ipaddr_to_host_uint32(receivers[id].socket.dest_addr))
                         break;
-                    }
+                }
 
-                    status = aes67_process_rtp_packet_opaque(buf_ctl, id, receiver, pbuf.words);
+                if (id == NUM_AES67_RECEIVERS)
+                    break; // packet not for a stream that has been registered (yet)
+
+                t :> local_ts;
+
+                aes67_receiver_t &receiver = receivers[id];
+                aes67_status_t status = aes67_rtp_parse_raw_opaque(receiver.socket, packet_info, pbuf.words);
+                if (status != AES67_STATUS_OK) {
 #if DEBUG_RTP
-                    if (status != AES67_STATUS_OK)
-                        debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
+                    debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
 #endif
                     break;
+                }
 
-                case buf_ctl :> int fifo_index:
-                    aes67_receiver_t &receiver =
-                        receivers[fifo_index / AES67_MAX_CHANNELS_PER_RECEIVER];
-                    aes67_audio_fifo_t *fifo =
-                        &receiver.fifos[fifo_index % AES67_MAX_CHANNELS_PER_RECEIVER];
+                status = aes67_process_rtp_packet_opaque(buf_ctl, local_ts, id, receiver, pbuf.words);
+#if DEBUG_RTP
+                if (status != AES67_STATUS_OK && status != AES67_STATUS_RTP_PACKET_TOO_OLD)
+                    debug_printf("RTP raw packet error: %s\n", aes67_status_to_string(status));
+#endif
+                break;
 
-                    aes67_audio_fifo_handle_buf_ctl(buf_ctl, fifo, &receiver.buf_ctl_notified);
-                    break;
+            case buf_ctl :> int fifo_index:
+                aes67_receiver_t &receiver =
+                    receivers[fifo_index / AES67_MAX_CHANNELS_PER_RECEIVER];
+                aes67_audio_fifo_t *fifo =
+                    &receiver.fifos[fifo_index % AES67_MAX_CHANNELS_PER_RECEIVER];
 
-                case t when timerafter(time) :> void:
-                    aes67_poll_stream_info_changed(i_xtcp, flags);
-                    time += XS1_TIMER_HZ;
-                    break;
-            }
+                aes67_audio_fifo_handle_buf_ctl(buf_ctl, fifo, &receiver.buf_ctl_notified);
+                break;
+
+            case t when timerafter(time) :> void:
+                aes67_poll_stream_info_changed(i_xtcp, flags);
+                time += XS1_TIMER_HZ;
+                break;
+        }
     }
 }
 
