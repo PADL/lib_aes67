@@ -33,14 +33,6 @@
 #define LOST_LOCK_THRESHOLD_LARGE 10000
 
 aes67_media_clock_t ptp_media_clock = {{0}};
-static int registered[MAX_CLK_CTL_CLIENTS];
-
-void aes67_clk_ctl_set_rate(chanend clk_ctl, int wordLength) {
-    master {
-        clk_ctl <: CLK_CTL_SET_RATE;
-        clk_ctl <: wordLength;
-    }
-}
 
 uint32_t
 ptp_timestamp_to_media_clock(uint64_t ptp_ts,
@@ -267,8 +259,6 @@ static void update_media_clocks(const uint32_t clk_time,
     update_media_clock_divide(ptp_media_clock);
 }
 
-void aes67_register_clock(uint32_t i) { registered[i] = 0; }
-
 aes67_media_clock_info_t aes67_get_clock_info(void) {
     return ptp_media_clock.info;
 }
@@ -334,9 +324,6 @@ void aes67_io_task(chanend buf_ctl[num_buf_ctl],
 #if (AES67_NUM_MEDIA_OUTPUTS != 0)
     aes67_media_clock_init_buffers();
 #endif
-
-    for (int i = 0; i < MAX_CLK_CTL_CLIENTS; i++)
-        registered[i] = -1;
 
     ptp_media_clock.info.active = 0;
 
