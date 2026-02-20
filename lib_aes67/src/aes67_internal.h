@@ -198,7 +198,6 @@ extern int ip4addr_aton(const char *unsafe cp, ip4_addr_t *unsafe addr);
 
 // Media clock select handler functions
 void aes67_register_buf_fifo(uint32_t i, uintptr_t fifo);
-void aes67_register_clock(uint32_t i);
 aes67_media_clock_info_t aes67_get_clock_info(void);
 
 const char *unsafe aes67_status_to_string(aes67_status_t status);
