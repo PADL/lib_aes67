@@ -397,7 +397,7 @@ aes67_rtp_parse_raw(const aes67_socket_t *sock,
     // the UDP header length (packet->header.length) includes the size of the
     // UDP header as well as the UDP payload (i.e. not the Ethernet or IP headers)
 
-    if (packet->header.length > packet_info->len - ETH_HEADER_LENGTH - IP_HEADER_LENGTH)
+    if (packet->header.length > packet_info->len - ETH_HEADER_LENGTH - ip_header_length)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
     packet->rtp_length = packet->header.length - UDP_HEADER_LENGTH;

@@ -200,6 +200,11 @@ aes67_rtp_packet_length_rtp(REFERENCE_PARAM(const aes67_rtp_packet_t, packet)) {
     return packet->rtp_length;
 }
 
+static inline size_t
+aes67_rtp_payload_length_rtp(REFERENCE_PARAM(const aes67_rtp_packet_t, packet)) {
+    return packet->rtp_length - RTP_HEADER_LENGTH;
+}
+
 // get destination IP address in host byte order
 uint32_t
 aes67_rtp_packet_get_dest_ip(REFERENCE_PARAM(const aes67_rtp_packet_t, packet));

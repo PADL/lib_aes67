@@ -53,10 +53,11 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
 
     if (RTP_VERSION_GET(&packet->rtp_header) != RTP_VERSION)
         return AES67_STATUS_UNSUPPORTED_RTP_VERSION;
-    else if (RTP_PAYLOAD_TYPE_GET(&packet->rtp_header) !=
-             stream_info->payload_type)
+    else if (RTP_PAYLOAD_TYPE_GET(&packet->rtp_header) != stream_info->payload_type)
         return AES67_STATUS_UNEXPECTED_RTP_PAYLOAD_TYPE;
-    else if ((aes67_rtp_packet_length_rtp(packet) % frame_size) != 0)
+
+    const size_t payload_len = aes67_rtp_payload_length_rtp(packet);
+    if ((payload_len % frame_size) != 0)
         return AES67_STATUS_BAD_PACKET_LENGTH;
 
     if (!aes67_rtp_update_sequence(&receiver->sequence_state,
@@ -78,7 +79,7 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
     // samples are laid out Frame0[C0C1...CN] ... FrameN[C0C1...CN]
     // payload_ptr points to the first sample for a channel
     // sample_size is used by aes67_audio_fifo_push_samples() to iterate frames
-    const size_t frame_count = aes67_rtp_packet_length_rtp(packet) / frame_size;
+    const size_t frame_count = payload_len / frame_size;
     uint8_t *payload_ptr = (uint8_t *)&packet->payload[0];
 
     for (size_t ch = 0; ch < stream_info->channel_count; ch++) {
