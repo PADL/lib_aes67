@@ -56,35 +56,6 @@ void aes67_audio_fifo_enable(aes67_audio_fifo_t *fifo) {
     fifo->pending_init_notification = 1;
 }
 
-// Pull a sample from the FIFO
-uint32_t aes67_audio_fifo_pull_sample(aes67_audio_fifo_t *fifo,
-                                      uint32_t timestamp,
-                                      int *valid) {
-    volatile uint32_t *dptr = fifo->dptr;
-    uint32_t sample;
-
-    *valid = (dptr != fifo->wrptr);
-
-    if (dptr == fifo->wrptr)
-        return 0; // underflow
-
-    sample = *dptr;
-
-    if (dptr == fifo->marker && fifo->local_ts == 0)
-        fifo->local_ts = timestamp ? timestamp : 1;
-
-    dptr++;
-    if (dptr == END_OF_FIFO(fifo))
-        dptr = START_OF_FIFO(fifo);
-
-    fifo->dptr = dptr;
-
-    if (fifo->zero_flag)
-        sample = 0;
-
-    return sample;
-}
-
 // Maintain FIFO state and notify clock recovery
 // Note: this subsumes the functionality of audio_output_fifo_set_ptp_timestamp()
 // in lib_avb, by also moving the marker pointer if clear
