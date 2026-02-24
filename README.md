@@ -2,20 +2,11 @@
 
 This is proof-of-concept code: caveat emptor.
 
-An AES67 audio-over-IP implementation for XMOS processors, providing networked audio streaming with precise timing synchronization.
+An AES67 audio-over-IP implementation for XMOS processors, loosely based on the XMOS [lib\_tsn](https://github.com/xmos/lib_tsn) library.
+
+At the time of writing, only single receiver usage has been validated, on a custom board with a CS2600 clock chip (different chips may need different PID coefficients).
 
 ## Overview
-
-## Features
-
-- **AES67 Standard Compliance**: implementation of AES67 audio-over-IP standard
-- **Multi-stream Support**: Configurable (at compile time) number of simultaneous audio streams
-- **Audio Formats**: Support for L16, L24, and L32 encodings
-- **Channel Flexibility**: Configurable number of channels per stream (depending on resources)
-- **PTP Clock Synchronization**: IEEE 1588 PTPv2 support
-- **Session Discovery**: SAP (Session Announcement Protocol) and SDP (Session Description Protocol)
-- **Real-time Performance**: Hardware-timed audio clock recovery with PID control
-- **Network Multicast**: UDP multicast for efficient audio distribution
 
 ## API Usage
 
@@ -32,16 +23,13 @@ void aes67_manager(server interface aes67_interface i_aes67[num_clients],
                    chanend media_control);
 
 // Initialize I/O task with PTP synchronization
-void aes67_io_task(chanend ?ptp_svr,
-                   chanend buf_ctl[num_buf_ctl],
+void aes67_io_task(chanend buf_ctl[num_buf_ctl],
                    uint32_t num_buf_ctl,
                    out buffered port:32 p_fs,
                    REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t, pid_coefficients),
                    chanend media_control,
                    client interface ethernet_cfg_if i_eth_cfg,
                    client xtcp_if i_xtcp,
-                   chanend c_ptp[num_ptp],
-                   uint32_t num_ptp,
                    uint32_t flags);
 ```
 
@@ -83,28 +71,6 @@ void aes67_submit_sender_samples(chanend media,
                                  size_t len,
                                  uint32_t timestamp);
 ```
-
-## Network Configuration
-
-### Multicast Addresses
-
-- **SAP**: 239.255.255.255:9875 (Session Announcement)
-- **Audio Streams**: User-configurable multicast addresses
-- **PTP**: Standard PTP multicast addresses for timing
-
-### Ports Used
-
-- UDP 9875 (SAP)
-- UDP 5004 (Default RTP audio)
-- UDP 319, 320 (PTP)
-
-## Performance Considerations
-
-### Real-time Requirements
-
-- **Thread Priority**: IO task should run at high priority
-- **Buffer Sizing**: Configure `AUDIO_OUTPUT_FIFO_WORD_SIZE` for your latency requirements
-- **Tile Allocation**: Receiver/sender tasks must run on the same tile as IO task
 
 ## Dependencies
 
