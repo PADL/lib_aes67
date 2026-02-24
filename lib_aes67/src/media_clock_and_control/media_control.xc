@@ -246,7 +246,5 @@ void aes67_media_control(chanend media_control,
         }
         media_control <: AES67_STATUS_OK;
         break;
-    default:
-        break;
     }
 }
