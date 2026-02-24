@@ -184,15 +184,15 @@ void aes67_rtp_receiver(CLIENT_INTERFACE(xtcp_if, i_xtcp), chanend buf_ctl,
                         streaming chanend ?c_eth_rx_hp);
 #endif // __XC__
 
-void
+// returns the number of samples written, does not zero unused samples
+size_t
 aes67_get_receiver_samples(int32_t id,
                            ARRAY_OF_SIZE(uint32_t, samples, len),
                            size_t len,
                            uint32_t local_timestamp);
 
-// this must be called from the same tile as aes67_rtp_receiver() as it uses
-// shared memory
-void
+// returns the number of samples written, does not zero unused samples
+size_t
 aes67_get_all_receiver_samples(ARRAY_OF_SIZE(uint32_t, samples, len),
                                size_t len,
                                uint32_t local_timestamp);
