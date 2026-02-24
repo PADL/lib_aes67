@@ -434,6 +434,7 @@ static void sap_handle_event(client xtcp_if i_xtcp,
     }
 }
 
+#if (NUM_AES67_SENDERS != 0)
 static aes67_status_t
 sap_advertise_sender(client xtcp_if i_xtcp,
                      int sap_tx_socket,
@@ -496,24 +497,27 @@ sap_advertise_senders(client xtcp_if i_xtcp,
                                  time_source_info);
     }
 }
+#endif // NUM_AES67_SENDERS != 0
 
 static void aes67_periodic(client xtcp_if i_xtcp,
                            chanend media_control,
                            int sap_tx_socket,
                            unsigned sap_timeout,
                            const uint32_t sap_timer_events) {
-    aes67_time_source_info_t time_source_info;
-
-    media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_TIME_SOURCE_INFO;
-    media_control :> time_source_info;
-
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
         if (sap_timer_events > sdp_subscriptions[id].timestamp + AES67_SAP_TIMEOUT)
             sdp_unsubscribe(id, SDP_SUBSCRIBE_FLAG_TIMED_OUT);
     }
 
+#if (NUM_AES67_SENDERS != 0)
+    aes67_time_source_info_t time_source_info;
+
+    media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_TIME_SOURCE_INFO;
+    media_control :> time_source_info;
+
     sap_advertise_senders(i_xtcp, sap_tx_socket, time_source_info);
+#endif
 }
 
 static aes67_status_t start_streaming(chanend media_control,
