@@ -14,7 +14,6 @@ At the time of writing, only single receiver usage has been validated, on a cust
 
 ```c
 #include <aes67.h>
-#include <ptp.h>
 
 // Initialize AES67 manager
 void aes67_manager(server interface aes67_interface i_aes67[num_clients],
@@ -39,16 +38,16 @@ void aes67_io_task(chanend buf_ctl[num_buf_ctl],
 // Subscribe to a named audio session
 aes67_status_t status = i_aes67.subscribe(stream_id, "MyAudioSession");
 
-// Get received audio samples
-void aes67_get_receiver_samples(int32_t id,
+// Get received audio samples, returns number of samples written
+size_t aes67_get_receiver_samples(int32_t id,
                                 uint32_t *output_buffer,
                                 size_t len,
                                 uint32_t local_timestamp);
 
-// Get all receiver samples at once
-void aes67_get_all_receiver_samples(uint32_t samples[len],
-                                    size_t len,
-                                    uint32_t local_timestamp);
+// Get all receiver samples at once, returns number of samples written
+size_t aes67_get_all_receiver_samples(uint32_t samples[len],
+                                      size_t len,
+                                      uint32_t local_timestamp);
 ```
 
 ### Sending Audio Streams
