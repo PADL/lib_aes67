@@ -59,8 +59,11 @@ static void sdp_init_advertisements(void) {
 
 static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
                                          const int32_t id,
+                                         const uint8_t is_receiver,
                                          const aes67_sdp_t &sdp) {
     aes67_status_t status;
+    const size_t max_channel_count =
+        is_receiver ? AES67_MAX_CHANNELS_PER_RECEIVER : AES67_MAX_CHANNELS_PER_SENDER;
 
     stream_info.state = AES67_STREAM_STATE_POTENTIAL;
 
@@ -78,7 +81,7 @@ static aes67_status_t sdp_to_stream_info(aes67_stream_info_t &stream_info,
 
     stream_info.sample_size = sdp.sample_size / 8;
     stream_info.payload_type = sdp.payload_type;
-    stream_info.channel_count = sdp.channel_count;
+    stream_info.channel_count = sdp.channel_count > max_channel_count ? max_channel_count : sdp.channel_count;
     stream_info.stream_id = id;
     stream_info.sample_rate = sdp.sample_rate;
     stream_info.packet_time_us =
@@ -326,7 +329,7 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
     flags |= SDP_SUBSCRIBE_FLAG_STORE_FAST_CONNECT;
 #endif
 
-    status = sdp_to_stream_info(stream_info, id, sdp);
+    status = sdp_to_stream_info(stream_info, id, TRUE, sdp);
     if (status == AES67_STATUS_UNKNOWN_RTP_ENCODING) {
         const char *unsafe encoding = aes67_encoding_name(sdp.encoding);
 
@@ -579,7 +582,7 @@ static aes67_status_t start_streaming(chanend media_control,
     // clock offset is always zero for SMPTE 2110 interop
     sdp.clock_offset = 0;
 
-    status = sdp_to_stream_info(stream_info, id, sdp);
+    status = sdp_to_stream_info(stream_info, id, FALSE, sdp);
     if (status != AES67_STATUS_OK)
         return status;
 
