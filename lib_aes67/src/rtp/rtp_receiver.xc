@@ -228,7 +228,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
 
             case t when timerafter(time) :> void:
                 aes67_poll_stream_info_changed(i_xtcp, flags);
-                time += XS1_TIMER_HZ;
+                time += XS1_TIMER_HZ / 10;
                 break;
         }
     }
