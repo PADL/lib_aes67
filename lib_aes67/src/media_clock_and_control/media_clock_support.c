@@ -132,7 +132,7 @@ aes67_update_media_clock_info(uint8_t locked,
 // (local delta) to decouple the PID coefficients from the sample period
 //
 
-#define DEBUG_INTERVAL 100
+#define DEBUG_INTERVAL 0
 
 #if DEBUG_INTERVAL
 static int pid_debug_counter;

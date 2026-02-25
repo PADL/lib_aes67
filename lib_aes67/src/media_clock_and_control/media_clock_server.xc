@@ -14,7 +14,7 @@
 #include "rtp_internal.h"
 
 #ifndef DEBUG_MEDIA_CLOCK
-#define DEBUG_MEDIA_CLOCK 0
+#define DEBUG_MEDIA_CLOCK 1
 #endif
 
 #ifndef PLL_OUTPUT_TIMING_CHECK
