@@ -72,9 +72,7 @@ _local_timestamp_to_media_clock(uint32_t local_ts,
     ptp_ts = local_timestamp_to_ptp_mod64(local_ts, timeInfo);
 
     // AES67 media clocks represents the sample time, not the presentation time,
-    // so adjust the local time back by the packet time, adding a conservative
-    // 1ms for switch forwarding delays. For a default packet time of 1ms, this
-    // conveniently matches the AVB presentation time offset of 2ms.
+    // so adjust the local time by the packet time and presentation time offset
     ptp_ts -= (packet_time + (PRESENTATION_TIME_OFFSET * 1000)) * 1000;
     media_clock = ptp_timestamp_to_media_clock(ptp_ts, ptp_media_clock.info.rate, clock_offset);
 }

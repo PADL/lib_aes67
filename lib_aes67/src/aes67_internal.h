@@ -73,10 +73,8 @@
     (AES67_MAX_AUDIO_SAMPLE_RATE / 50) // 20ms buffer per AES67 spec
 #endif
 
-// offset, in ms, from the _last_ sample in the packet to the presentation
-// time. this is added to the packet time in order to determine the
-// presentation time.
-#define PRESENTATION_TIME_OFFSET (1)
+// 20ms buffer per ASE67 spec
+#define PRESENTATION_TIME_OFFSET (20)
 
 #ifndef TRUE
 #define TRUE (1)
