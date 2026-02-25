@@ -132,10 +132,13 @@ aes67_update_media_clock_info(uint8_t locked,
 // (local delta) to decouple the PID coefficients from the sample period
 //
 
-static int pid_debug_counter;
-#define DEBUG_INTERVAL 50
+#define DEBUG_INTERVAL 100
 
-#define PID_MAX_CORRECTION 5000
+#if DEBUG_INTERVAL
+static int pid_debug_counter;
+#endif
+
+#define PID_MAX_CORRECTION (1 << 20)
 
 uint32_t
 aes67_update_media_clock(const aes67_media_clock_pid_coefficients_t *pid_coefficients) {
@@ -144,31 +147,38 @@ aes67_update_media_clock(const aes67_media_clock_pid_coefficients_t *pid_coeffic
     if (timestamp_info_valid(&clock_info->t2)) {
         if (timestamp_info_valid(&clock_info->t1)) {
             if (likely(clock_info->locked)) {
-                const int64_t pid_period = (int64_t)clock_info->t2.local - (int64_t)clock_info->t1.local;
                 pid_error_t error;
+#if DEBUG_INTERVAL
+                pid_debug_counter++;
+#endif
 
                 pid_error_init(&error);
                 error.i = (int64_t)clock_info->t2.expected - (int64_t)clock_info->t2.actual;
-                error.i <<= (uint64_t)(WORDLEN_FRACTIONAL_BITS - 10);
+                error.i <<= WORDLEN_FRACTIONAL_BITS;
 
                 if (!clock_info->first) {
                     error.p = error.i - clock_info->error.i;
                     error.d = pid_coefficients->d_numerator ? (error.p - clock_info->error.p) : 0;
 
+                    const int64_t pid_period = ((int64_t)clock_info->t2.local - (int64_t)clock_info->t1.local);
                     const int64_t wl_correction =
                         ((error.p / pid_period) * pid_coefficients->p_numerator) / pid_coefficients->p_denominator +
                         ((error.i / pid_period) * pid_coefficients->i_numerator) / pid_coefficients->i_denominator +
                         ((error.d / pid_period) * pid_coefficients->d_numerator) / pid_coefficients->d_denominator;
-                    if (abs64(wl_correction) >= PID_MAX_CORRECTION) // skip outliers
-                        goto reset_pid;
+
+                    if (abs64(wl_correction) >= PID_MAX_CORRECTION) {
 #if DEBUG_INTERVAL
-                    if ((pid_debug_counter++ % DEBUG_INTERVAL) == 0)
-                        debug_printf("PID: SP %u PV %u PhaseError %d (%d us) FreqError %d Correction %d\n",
-                                     clock_info->t2.expected, clock_info->t2.actual,
-                                     (int32_t)(error.i / pid_period),
-                                     ((int64_t)clock_info->t2.expected - (int64_t)clock_info->t2.actual) / 1000,
-                                     (int32_t)(error.p / pid_period),
-                                     (int32_t)wl_correction);
+                        if ((pid_debug_counter % DEBUG_INTERVAL) == 0)
+                            debug_printf("PID: wl_correction %d %x out of range\n",
+                                         (wl_correction << 32), (wl_correction & 0xffffffff));
+#endif
+                        goto reset_pid;
+                    }
+#if DEBUG_INTERVAL
+                    if ((pid_debug_counter % DEBUG_INTERVAL) == 0) {
+                        debug_printf("PID: phase_err %d freq_err %d wl_correction %d\n",
+                                     (int32_t)error.i, (int32_t)error.p, (int32_t)wl_correction);
+                    }
 #endif
                     clock_info->wordlen_40_24 -= wl_correction;
                 } else {
@@ -219,10 +229,10 @@ void aes67_register_buf_fifo(uint32_t i, uintptr_t fifo) {
 // PID coefficients for various clock chips
 // TODO: re-add coefficients for CS2100/CS2300 when we have tested
 aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
-    .p_numerator = 17,
+    .p_numerator = 2,
     .p_denominator = 1,
-    .i_numerator = 1,
-    .i_denominator = 1000,
+    .i_numerator = 0,
+    .i_denominator = 4,
     .d_numerator = 0,
     .d_denominator = 1
 };
