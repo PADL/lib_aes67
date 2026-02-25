@@ -73,6 +73,18 @@
     (AES67_MAX_AUDIO_SAMPLE_RATE / 50) // 20ms buffer per AES67 spec
 #endif
 
+#ifndef AES67_DANTE_DSCP_COMPAT
+#define AES67_DANTE_DSCP_COMPAT 0
+#endif
+
+#ifndef AES67_FAST_CONNECT_ENABLED
+#define AES67_FAST_CONNECT_ENABLED 0
+#endif
+
+#ifndef AES67_METERING
+#define AES67_METERING 0
+#endif
+
 // 20ms buffer per ASE67 spec
 #define PRESENTATION_TIME_OFFSET (20)
 
