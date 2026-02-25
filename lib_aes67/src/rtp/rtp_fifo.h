@@ -92,4 +92,8 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t sample_size,
                                    size_t stride,
                                    size_t num_samples,
-                                   uint32_t encoding);
+                                   uint32_t encoding
+#if AES67_METERING
+                                   , size_t meter_channel
+#endif
+                                   );

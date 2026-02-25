@@ -25,6 +25,19 @@ aes67_process_rtp_packet(chanend buf_ctl,
                          int32_t id,
                          REFERENCE_PARAM(aes67_receiver_t, receiver),
                          REFERENCE_PARAM(const aes67_rtp_packet_t, packet));
+
+extern int32_t input_peaks[AES67_NUM_MEDIA_INPUTS];
+extern int32_t output_peaks[AES67_NUM_MEDIA_OUTPUTS];
+
+#if AES67_METERING
+static inline void aes67_meter_set(enum aes67_meter_type_t type, size_t index, int32_t sample) {
+  int32_t *peaks = (type == AES67_METER_INPUT) ? input_peaks : output_peaks;
+
+  if (sample >= peaks[index])
+    peaks[index] = sample;
+}
+#endif // AES67_METERING
+
 #endif
 
 aes67_status_t

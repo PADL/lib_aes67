@@ -107,7 +107,11 @@ aes67_status_t aes67_process_rtp_packet(chanend buf_ctl,
         aes67_audio_fifo_push_samples(
             &receiver->fifos[ch], payload_ptr, stream_info->sample_size,
             stream_info->channel_count, frame_count,
-            stream_info->encoding);
+            stream_info->encoding
+#if AES67_METERING
+            , id * AES67_MAX_CHANNELS_PER_RECEIVER + ch
+#endif
+            );
         payload_ptr += stream_info->sample_size;
     }
 
@@ -155,6 +159,7 @@ aes67_get_receiver_samples(int32_t id,
     return get_receiver_samples(id, output_buffer, output_buffer_len, local_timestamp);
 }
 
+#if !AES67_METERING
 size_t
 aes67_get_all_receiver_samples(uint32_t *output_buffer,
                                size_t output_buffer_len,
@@ -167,6 +172,7 @@ aes67_get_all_receiver_samples(uint32_t *output_buffer,
 
     return n;
 }
+#endif
 
 #ifdef AES67_XMOS
 aes67_status_t aes67_process_rtp_packet_opaque(chanend buf_ctl,

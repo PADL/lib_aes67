@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
+// Copyright (c) 2025-2026 PADL Software Pty Ltd. All rights reserved.
 
 #pragma once
 
@@ -11,6 +11,23 @@
 #include <xtcp.h>
 #include <ptp.h>
 #include <quadflash.h>
+
+// compile time preprocessor defines
+
+// AES67_DANTE_DSCP_COMPAT=1
+// support Dante DSCP values
+
+// AES67_FAST_CONNECT_ENABLED=1
+// support for fast connect on startup of existing streams
+
+// AES67_METERING=1
+// enable metering API
+
+// NUM_AES67_RECEIVERS=N
+// number of AES67 receivers
+
+// NUM_AES67_SENDERS=M
+// number of AES67 senders
 
 #ifndef AES67_MAX_CHANNELS_PER_RECEIVER
 #define AES67_MAX_CHANNELS_PER_RECEIVER 8
@@ -191,11 +208,13 @@ aes67_get_receiver_samples(int32_t id,
                            size_t len,
                            uint32_t local_timestamp);
 
+#if !AES67_METERING
 // returns the number of samples written, does not zero unused samples
 size_t
 aes67_get_all_receiver_samples(ARRAY_OF_SIZE(uint32_t, samples, len),
                                size_t len,
                                uint32_t local_timestamp);
+#endif
 
 uint32_t
 aes67_get_receiver_sample(int32_t id,
@@ -222,3 +241,13 @@ aes67_submit_sender_samples(chanend media,
                             ARRAY_OF_SIZE(uint32_t, samples, len),
                             size_t len,
                             uint32_t timestamp);
+
+#if AES67_METERING
+enum aes67_meter_type_t {
+    AES67_METER_INPUT = 0, // media input (sender/source)
+    AES67_METER_OUTPUT = 1 // media output (receiver/sink)
+};
+
+void aes67_meter_init(enum aes67_meter_type_t type);
+int aes67_meter_get(enum aes67_meter_type_t type, size_t index, REFERENCE_PARAM(int32_t, peak));
+#endif

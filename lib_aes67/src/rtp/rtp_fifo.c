@@ -9,6 +9,7 @@
 #include "media_clock_client.h"
 #include "aes67_utils.h"
 #include "rtp_fifo.h"
+#include "rtp_internal.h"
 
 #define OUTPUT_DURING_LOCK 0
 #define NOTIFICATION_PERIOD 250
@@ -134,7 +135,11 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
                                    size_t sample_size,
                                    size_t stride, // effectively channel count
                                    size_t num_frames,
-                                   uint32_t encoding) {
+                                   uint32_t encoding
+#if AES67_METERING
+                                   , size_t meter_channel
+#endif
+                                   ) {
     volatile uint32_t *wrptr = fifo->wrptr;
     uint32_t sample;
 
@@ -166,6 +171,10 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
 
         if (unlikely(fifo->state == AES67_FIFO_ZEROING))
             sample = 0;
+
+#if AES67_METERING
+        aes67_meter_set(AES67_METER_OUTPUT, meter_channel, sample);
+#endif
 
         volatile uint32_t *new_wrptr = wrptr + 1;
 
