@@ -176,7 +176,7 @@ void aes67_audio_fifo_push_samples(aes67_audio_fifo_t *fifo,
             *wrptr = sample;
             wrptr = new_wrptr;
         } else {
-            // debug_printf("FIFO %x overflow!\n", fifo);
+            debug_printf("FIFO %x overflow!\n", fifo);
         }
 
         sample_ptr += sample_size * stride;
