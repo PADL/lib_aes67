@@ -161,11 +161,14 @@ aes67_update_media_clock(const aes67_media_clock_pid_coefficients_t *pid_coeffic
                         ((error.d / pid_period) * pid_coefficients->d_numerator) / pid_coefficients->d_denominator;
                     if (abs64(wl_correction) >= PID_MAX_CORRECTION) // skip outliers
                         goto reset_pid;
-
 #if DEBUG_INTERVAL
                     if ((pid_debug_counter++ % DEBUG_INTERVAL) == 0)
-                        debug_printf("PID: ierror %d perror %d (unadjusted); correction %d\n",
-                                     (int32_t)error.i, (int32_t)error.p, (int32_t)wl_correction);
+                        debug_printf("PID: SP %u PV %u PhaseError %d (%d us) FreqError %d Correction %d\n",
+                                     clock_info->t2.expected, clock_info->t2.actual,
+                                     (int32_t)(error.i / pid_period),
+                                     ((int64_t)clock_info->t2.expected - (int64_t)clock_info->t2.actual) / 1000,
+                                     (int32_t)(error.p / pid_period),
+                                     (int32_t)wl_correction);
 #endif
                     clock_info->wordlen_40_24 -= wl_correction;
                 } else {
