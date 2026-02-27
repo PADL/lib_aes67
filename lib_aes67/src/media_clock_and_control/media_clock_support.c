@@ -155,6 +155,7 @@ aes67_update_media_clock(const aes67_media_clock_pid_coefficients_t *pid_coeffic
                 pid_error_init(&error);
                 error.i = (int64_t)clock_info->t2.expected - (int64_t)clock_info->t2.actual;
                 error.i <<= WORDLEN_FRACTIONAL_BITS;
+                // error.i &= ~(0xff); // mask out thread scheduling noise
 
                 if (!clock_info->first) {
                     error.p = error.i - clock_info->error.i;
