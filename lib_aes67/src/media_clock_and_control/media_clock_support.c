@@ -229,11 +229,13 @@ void aes67_register_buf_fifo(uint32_t i, uintptr_t fifo) {
 
 // PID coefficients for various clock chips
 // TODO: re-add coefficients for CS2100/CS2300 when we have tested
+// these are pretty much the CS2300 coefficients (which we have tested with
+// lib_tsn) but scaled by 1/16
 aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
     .p_numerator = 2,
     .p_denominator = 1,
-    .i_numerator = 0,
-    .i_denominator = 4,
+    .i_numerator = 1,
+    .i_denominator = 128,
     .d_numerator = 0,
     .d_denominator = 1
 };
