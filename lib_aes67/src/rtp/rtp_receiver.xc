@@ -144,7 +144,7 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
             // initialize FIFO and mark as ready to receive media control
             // commands
             aes67_audio_fifo_init(fifo);
-            aes67_register_buf_fifo(id * NUM_AES67_RECEIVERS + ch,
+            aes67_register_buf_fifo(id * AES67_MAX_CHANNELS_PER_RECEIVER + ch,
                                     (uintptr_t)fifo);
         }
     }
