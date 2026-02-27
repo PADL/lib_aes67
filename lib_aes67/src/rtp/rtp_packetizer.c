@@ -18,11 +18,11 @@ static uint64_t
 local_timestamp_to_rtp_media_clock(uint32_t local_timestamp,
                                    const aes67_stream_info_t *stream_info) {
     ptp_time_info_mod64 timeInfo;
-    uint32_t ptp_timestamp_ns;
+    uint64_t ptp_timestamp_ns;
 
     // Get PTP time info and convert local timestamp to PTP nanoseconds
     ptp_get_local_time_info_mod64(&timeInfo);
-    ptp_timestamp_ns = local_timestamp_to_ptp_mod32(local_timestamp, &timeInfo);
+    ptp_timestamp_ns = local_timestamp_to_ptp_mod64(local_timestamp, &timeInfo);
 
     return ptp_timestamp_to_media_clock(ptp_timestamp_ns,
                                         stream_info->sample_rate,
