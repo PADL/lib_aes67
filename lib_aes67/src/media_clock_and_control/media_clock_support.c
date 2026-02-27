@@ -161,7 +161,7 @@ aes67_update_media_clock(const aes67_media_clock_pid_coefficients_t *pid_coeffic
                     error.p = error.i - clock_info->error.i;
                     error.d = pid_coefficients->d_numerator ? (error.p - clock_info->error.p) : 0;
 
-                    const int64_t pid_period = ((int64_t)clock_info->t2.local - (int64_t)clock_info->t1.local);
+                    const int64_t pid_period = (int64_t)(uint32_t)(clock_info->t2.local - clock_info->t1.local);
                     const int64_t wl_correction =
                         ((error.p / pid_period) * pid_coefficients->p_numerator) / pid_coefficients->p_denominator +
                         ((error.i / pid_period) * pid_coefficients->i_numerator) / pid_coefficients->i_denominator +
