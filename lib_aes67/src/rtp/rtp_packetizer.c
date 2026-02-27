@@ -43,8 +43,7 @@ static void rtp_packet_header_init(const aes67_stream_info_t *stream_info,
     RTP_PAYLOAD_TYPE_SET(rtp_header, stream_info->payload_type);
 
     rtp_header->sequence = sender->sequence_state.max_seq++;
-    rtp_header->timestamp =
-        (sender->media_clock + stream_info->clock_offset) & 0xffffffff;
+    rtp_header->timestamp = sender->media_clock;
     rtp_header->ssrc = stream_info->stream_id; // XXX
 }
 
