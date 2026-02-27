@@ -106,9 +106,11 @@ ptp_ts_adjusted(uint64_t local_ptp_ts, int32_t sample_diff, uint32_t rate) {
     // calculate local timestamp at nearest sample boundary
     local_ptp_ts_quantized = (local_ptp_ts + period / 2) / period * period;
 
-    int64_t sample_diff_ns = samples_to_nanoseconds(sample_diff, rate);
-
-    return local_ptp_ts_quantized + sample_diff_ns;
+    if (sample_diff >= 0) {
+        return local_ptp_ts_quantized + samples_to_nanoseconds((uint32_t)sample_diff, rate);
+    } else {
+        return local_ptp_ts_quantized - samples_to_nanoseconds((uint32_t)(-sample_diff), rate);
+    }
 }
 
 #if AES67_NUM_MEDIA_OUTPUTS != 0
