@@ -345,7 +345,7 @@ static aes67_status_t _sap_handle_message(client xtcp_if i_xtcp,
     if (message_type == AES67_SAP_MESSAGE_DELETE) {
         debug_printf("unsubscribing from stream %s\n", sdp.session_name);
         sdp_unsubscribe(id, flags);
-        media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_SUBSCRIBE;
+        media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_UNSUBSCRIBE;
         media_control <: id;
     } else if (!sdp_is_subscribed(id)) {
         debug_printf("subscribing to stream %s channel count %d sample "
