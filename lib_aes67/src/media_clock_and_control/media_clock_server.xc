@@ -33,6 +33,8 @@
 
 aes67_media_clock_t ptp_media_clock = {{0}};
 
+static const xtcp_ipaddr_t all_hosts_mcast_group = {224, 0, 0, 1};
+
 static inline uint64_t
 relative_ptp_timestamp_to_media_clock(uint64_t ptp_ts, uint32_t rate) {
     uint64_t ptp_ts_samples;
@@ -390,6 +392,7 @@ aes67_io_task(chanend buf_ctl[num_buf_ctl],
               client interface ethernet_cfg_if i_eth_cfg,
               client xtcp_if i_xtcp,
               uint32_t flags) {
+    ethernet_macaddr_filter_t macaddr_filter;
     timer tmr;
     uint32_t ptp_timeout;
     uint32_t clk_time;
@@ -406,6 +409,11 @@ aes67_io_task(chanend buf_ctl[num_buf_ctl],
         ptp_server_type = PTP_GRANDMASTER_CAPABLE;
 
     ptp_server_init(i_eth_cfg, null, i_xtcp, ptp_server_type, tmr, ptp_timeout);
+
+    // PADL/lib_aes67#10: needed for IGMP
+    ipv4_to_multicast_mac(all_hosts_mcast_group, macaddr_filter.addr);
+    macaddr_filter.appdata = 0;
+    i_eth_cfg.add_macaddr_filter(0, 0, macaddr_filter);
 
 #if (AES67_NUM_MEDIA_OUTPUTS != 0)
     aes67_media_clock_init_buffers();
