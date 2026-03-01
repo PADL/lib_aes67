@@ -176,7 +176,7 @@ sdp_unsubscribe(int32_t id, uint32_t flags) {
 
     // permanent entries should never expire
     if ((flags & SDP_SUBSCRIBE_FLAG_TIMED_OUT) &&
-        (flags & SDP_SUBSCRIBE_FLAG_PERMANENT))
+        (sdp_subscriptions[id].flags & AES67_SDP_FLAG_PERMANENT))
         return;
 
     memset(&sdp_subscriptions[id], 0, sizeof(sdp_subscriptions[id]));
