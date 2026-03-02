@@ -235,10 +235,10 @@ void aes67_init_sender_buffers(void);
 // submit up to a complete packet's worth of samples
 // can call multiple times to fill buffer
 // samples should be ordered by channel first, then frame
-void
+unsafe void
 aes67_submit_sender_samples(chanend media,
                             int32_t id,
-                            ARRAY_OF_SIZE(uint32_t, samples, len),
+                            uint32_t *unsafe samples,
                             size_t len,
                             uint32_t timestamp);
 

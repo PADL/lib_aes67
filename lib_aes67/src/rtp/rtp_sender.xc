@@ -16,36 +16,37 @@ static inline int aes67_is_sender_open(const aes67_sender_t &sender) {
     return sender.socket.fd != -1;
 }
 
-static void
+static unsafe void
 aes67_poll_stream_info_changed(uint32_t time,
                                const xtcp_ipaddr_t src_ipaddr,
                                int rtp_tx_socket,
                                int &src_ipaddr_changed) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_SENDERS; id++) {
-        aes67_stream_info_t stream_info = sender_streams[id];
-        aes67_sender_t &sender = senders[id];
+        const aes67_stream_info_t &stream_info = sender_streams[id];
+        aes67_sender_t *unsafe sender = aes67_get_sender(id);
 
         switch (stream_info.state) {
         case AES67_STREAM_STATE_DISABLED:
-            sender.socket.fd = -1;
-            sender.sample_count = 0;  // Reset accumulator when disabling
-            sender.pending_ts = 0;    // Reset pending timestamp
+            sender->socket.fd = -1;
+            COMPILER_BARRIER();
+            sender->sample_count = 0;  // Reset accumulator when disabling
+            sender->pending_ts = 0;    // Reset pending timestamp
             break;
         case AES67_STREAM_STATE_ENABLED:
-            if (sender.socket.fd == -1) {
+            if (sender->socket.fd == -1) {
                 // Stream is being newly enabled - full initialization
                 COMPILER_BARRIER();
-                sender.socket.fd = rtp_tx_socket;
-                memcpy(sender.socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
-                sender.socket.dest_port = stream_info.dest_port;
-                sender.sequence_state.max_seq = time & 0xffff;
-                sender.media_clock = 0;
-                sender.frames_per_packet = ((stream_info.sample_rate / 100) * stream_info.packet_time_us) / 10000;
-                sender.samples_per_packet = sender.frames_per_packet * stream_info.channel_count;
+                sender->socket.fd = rtp_tx_socket;
+                memcpy(sender->socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
+                sender->socket.dest_port = stream_info.dest_port;
+                sender->sequence_state.max_seq = time & 0xffff;
+                sender->media_clock = 0;
+                sender->frames_per_packet = ((stream_info.sample_rate / 100) * stream_info.packet_time_us) / 10000;
+                sender->samples_per_packet = sender->frames_per_packet * stream_info.channel_count;
             }
-            if (sender.socket.fd == -1 || src_ipaddr_changed) {
-                memcpy(sender.socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
+            if (sender->socket.fd == -1 || src_ipaddr_changed) {
+                memcpy(sender->socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
             }
             break;
         case AES67_STREAM_STATE_UPDATING:
@@ -109,6 +110,8 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
             case data_ready :> int32_t id:
                 uint32_t *movable &tmp;
                 uint32_t timestamp;
+                aes67_sender_t *unsafe sender = aes67_get_sender(id);
+                uint32_t samples_per_packet;
 
                 // synchronization point: swap double buffers
                 data_ready :> timestamp;
@@ -120,13 +123,19 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                 aes67_update_sender_media_clock_info(timestamp);
 #endif
 
+                unsafe {
+                    samples_per_packet = sender->samples_per_packet;
+                }
+
                 // send RTP packet
                 aes67_send_rtp_packet(i_xtcp, src_mac_addr, c_eth_tx_hp, id, tx_rdbuffer[id],
-                                      senders[id].samples_per_packet, timestamp);
+                                      samples_per_packet, timestamp);
                 break;
 
             case t when timerafter(time) :> void:
-                aes67_poll_stream_info_changed(time, ipconfig.ipaddr, rtp_tx_socket, src_ipaddr_changed);
+                unsafe {
+                    aes67_poll_stream_info_changed(time, ipconfig.ipaddr, rtp_tx_socket, src_ipaddr_changed);
+                }
                 time += XS1_TIMER_HZ;
                 break;
 
@@ -159,11 +168,12 @@ void aes67_init_sender_buffers(void) {
 // Submit samples, ordered by channel and then frame (i.e. in network packet
 // order) until enough samples are submitted to cause a RTP packet to be emitted
 // the timestamp is the timestamp of the first sample in the packet
-void aes67_submit_sender_samples(chanend data_ready,
-                                 int32_t id,
-                                 ARRAY_OF_SIZE(uint32_t, samples, len),
-                                 size_t len,
-                                 uint32_t timestamp) {
+unsafe void
+aes67_submit_sender_samples(chanend data_ready,
+                            int32_t id,
+                            uint32_t *unsafe samples,
+                            size_t len,
+                            uint32_t timestamp) {
     assert(len <= AES67_MAX_CHANNELS_PER_SENDER);
 
     aes67_sender_t &sender = senders[id];
