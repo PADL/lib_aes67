@@ -11,8 +11,6 @@
 #include "ptp_internal.h"
 #include "media_clock_internal.h"
 
-aes67_sender_t senders[NUM_AES67_SENDERS];
-
 // Sender state check - atomic 32-bit read
 static inline int aes67_is_sender_open(const aes67_sender_t &sender) {
     return sender.socket.fd != -1;

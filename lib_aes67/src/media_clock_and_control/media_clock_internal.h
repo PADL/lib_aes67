@@ -74,6 +74,11 @@ uint32_t
 aes67_update_media_clock(REFERENCE_PARAM(const aes67_media_clock_pid_coefficients_t,
                                          pid_coefficients));
 
+// copy the non-atomic elements of a stream_info
+void
+aes67_copy_stream_info(REFERENCE_PARAM(aes67_stream_info_t, dest_stream_info),
+                       REFERENCE_PARAM(const aes67_stream_info_t, stream_info));
+
 static inline uint64_t abs64(int64_t value) {
   const int64_t mask = value >> 63;
   return (value + mask) ^ mask;

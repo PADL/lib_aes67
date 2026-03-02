@@ -9,8 +9,6 @@
 #include "rtp_internal.h"
 #include "ptp_internal.h"
 
-aes67_receiver_t receivers[NUM_AES67_RECEIVERS];
-
 static int32_t lookup_receiver_from_fd(int32_t fd) {
 #pragma unsafe arrays
     for (size_t id = 0; id < NUM_AES67_RECEIVERS; id++) {

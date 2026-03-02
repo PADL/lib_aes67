@@ -10,6 +10,8 @@
 #include "ptp_internal.h"
 #include "media_clock_internal.h"
 
+aes67_receiver_t receivers[NUM_AES67_RECEIVERS];
+
 aes67_stream_info_t *unsafe aes67_get_receiver_stream(int32_t id) {
     assert(is_valid_receiver_id(id));
 

@@ -64,6 +64,15 @@ typedef struct _aes67_sender {
 
 extern aes67_sender_t senders[NUM_AES67_SENDERS];
 
+aes67_stream_info_t *unsafe aes67_get_sender_stream(int32_t id);
+aes67_sender_t *unsafe aes67_get_sender(int32_t id);
+
+void
+aes67_set_sender_stream_state(int32_t id, aes67_stream_state_t state);
+
+void
+aes67_update_sender_stream_info(REFERENCE_PARAM(const aes67_stream_info_t, stream_info));
+ 
 aes67_status_t
 aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                       const uint8_t src_mac_addr[MACADDR_NUM_BYTES],

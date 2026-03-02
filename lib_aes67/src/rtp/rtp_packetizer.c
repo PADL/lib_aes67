@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
+// Copyright (c) 2025-2026 PADL Software Pty Ltd. All rights reserved.
 
 #include <xassert.h>
 #include <debug_print.h>
@@ -10,6 +10,44 @@
 #include "ptp_internal.h"
 #include "rtp_internal.h"
 #include "media_clock_internal.h"
+
+aes67_stream_info_t *
+aes67_get_sender_stream(int32_t id) {
+    if (id >= NUM_AES67_SENDERS)
+        return NULL;
+
+    return &sender_streams[id];
+}
+
+aes67_sender_t senders[NUM_AES67_SENDERS];
+
+aes67_sender_t *aes67_get_sender(int32_t id) {
+    if (id >= NUM_AES67_SENDERS)
+        return NULL;
+
+    return &senders[id];
+}
+
+void
+aes67_set_sender_stream_state(int32_t id, aes67_stream_state_t state) {
+    aes67_stream_info_t *stream_info = aes67_get_sender_stream(id);
+
+    if (stream_info == NULL)
+        return;
+
+    stream_info->state = state;
+}
+
+void
+aes67_update_sender_stream_info(const aes67_stream_info_t *src) {
+    const int32_t id = src->stream_id;
+    aes67_stream_info_t *dst = aes67_get_sender_stream(id);
+
+    aes67_set_sender_stream_state(id, AES67_STREAM_STATE_UPDATING);
+    aes67_copy_stream_info(dst, src);
+    COMPILER_BARRIER();
+    aes67_set_sender_stream_state(id, AES67_STREAM_STATE_ENABLED);
+}
 
 // Convert local XMOS timestamp to RTP media clock
 // Local XMOS timestamp -> PTP timestamp -> RTP media clock (based on sample
@@ -62,8 +100,8 @@ aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                       ARRAY_OF_SIZE(const uint32_t, samples, len),
                       size_t len,
                       uint32_t timestamp) {
-    aes67_stream_info_t *stream_info = &sender_streams[id];
-    aes67_sender_t *sender = &senders[id];
+    aes67_stream_info_t *stream_info = aes67_get_sender_stream(id);
+    aes67_sender_t *sender = aes67_get_sender(id);
     aes67_rtp_packet_t packet;
     aes67_status_t status;
 

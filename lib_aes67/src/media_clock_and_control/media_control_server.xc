@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025 PADL Software Pty Ltd. All rights reserved.
+// Copyright (c) 2025-2026 PADL Software Pty Ltd. All rights reserved.
 
 #include <xassert.h>
 #include <string.h>
@@ -109,9 +109,9 @@ log_subscription_control_command(aes67_media_control_command_t command,
 }
 
 // copy the non-atomic elements of a stream_info
-static void
-copy_stream_info(aes67_stream_info_t &dest_stream_info,
-                 const const aes67_stream_info_t &stream_info) {
+inline void
+aes67_copy_stream_info(aes67_stream_info_t &dest_stream_info,
+                       const aes67_stream_info_t &stream_info) {
     assert(dest_stream_info.state == AES67_STREAM_STATE_UPDATING);
     // copy in other fields (non-atomically)
     memcpy((uint8_t *)&dest_stream_info + sizeof(uint32_t),
@@ -147,7 +147,7 @@ subscribe_or_resubscribe_stream(client ethernet_cfg_if ?i_eth_cfg,
 
     join_receiver_stream(i_eth_cfg, i_xtcp, stream_info, flags);
 
-    copy_stream_info(*dest_stream_info, stream_info);
+    aes67_copy_stream_info(*dest_stream_info, stream_info);
 
     COMPILER_BARRIER();
     dest_stream_info->state = AES67_STREAM_STATE_POTENTIAL;
@@ -224,16 +224,13 @@ void aes67_media_control(chanend media_control,
         aes67_stream_info_t stream_info;
 
         media_control :> stream_info;
-        sender_streams[stream_info.stream_id].state = AES67_STREAM_STATE_UPDATING;
-        copy_stream_info(sender_streams[stream_info.stream_id], stream_info);
-        COMPILER_BARRIER();
-        sender_streams[stream_info.stream_id].state = AES67_STREAM_STATE_ENABLED;
+        aes67_update_sender_stream_info(stream_info);
         break;
     case AES67_MEDIA_CONTROL_COMMAND_STOP_STREAMING:
         int32_t id;
 
         media_control :> id;
-        sender_streams[id].state = AES67_STREAM_STATE_DISABLED;
+        aes67_set_sender_stream_state(id, AES67_STREAM_STATE_DISABLED);
         break;
     case AES67_MEDIA_CONTROL_COMMAND_SET_SAMPLE_RATE:
         uint32_t rate;
