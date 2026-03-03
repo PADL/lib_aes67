@@ -234,7 +234,7 @@ void aes67_register_buf_fifo(uint32_t i, uintptr_t fifo) {
 aes67_media_clock_pid_coefficients_t cs2600_pid_coefficients = {
     .p_numerator = 2,
     .p_denominator = 1,
-    .i_numerator = 1,
+    .i_numerator = 0,
     .i_denominator = 128,
     .d_numerator = 0,
     .d_denominator = 1
