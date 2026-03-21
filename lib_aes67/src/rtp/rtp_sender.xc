@@ -29,23 +29,24 @@ aes67_poll_stream_info_changed(uint32_t time,
         switch (stream_info.state) {
         case AES67_STREAM_STATE_DISABLED:
             sender->socket.fd = -1;
-            COMPILER_BARRIER();
-            sender->sample_count = 0;  // Reset accumulator when disabling
-            sender->pending_ts = 0;    // Reset pending timestamp
             break;
         case AES67_STREAM_STATE_ENABLED:
             if (sender->socket.fd == -1) {
                 // Stream is being newly enabled - full initialization
-                COMPILER_BARRIER();
-                sender->socket.fd = rtp_tx_socket;
+                // Initialize all fields before setting fd, which acts as
+                // the visibility flag for the audio task
                 memcpy(sender->socket.dest_addr, stream_info.dest_addr, sizeof(xtcp_ipaddr_t));
+                memcpy(sender->socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
                 sender->socket.dest_port = stream_info.dest_port;
                 sender->sequence_state.max_seq = time & 0xffff;
                 sender->media_clock = 0;
                 sender->frames_per_packet = ((stream_info.sample_rate / 100) * stream_info.packet_time_us) / 10000;
                 sender->samples_per_packet = sender->frames_per_packet * stream_info.channel_count;
-            }
-            if (sender->socket.fd == -1 || src_ipaddr_changed) {
+                sender->sample_count = 0;
+                sender->pending_ts = 0;
+                COMPILER_BARRIER();
+                sender->socket.fd = rtp_tx_socket;
+            } else if (src_ipaddr_changed) {
                 memcpy(sender->socket.src_addr, src_ipaddr, sizeof(xtcp_ipaddr_t));
             }
             break;
