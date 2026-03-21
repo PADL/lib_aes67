@@ -175,36 +175,43 @@ aes67_submit_sender_samples(chanend data_ready,
     aes67_sender_t &sender = senders[id];
 
     // Check if sender is open (atomic 32-bit read) - avoid race with stream removal
-    if (!aes67_is_sender_open(sender))
+    if (!aes67_is_sender_open(sender)) {
+        sender.sample_count = 0;
         return;
-
-    uint32_t sample_count = sender.sample_count;
-
-    if (sample_count == 0)
-        sender.pending_ts = timestamp;
-
-#pragma unsafe arrays
-    for (size_t i = 0;
-         i < len && sample_count < sender.samples_per_packet;
-         i++, sample_count++) {
-        tx_wrbuffer[id][sample_count] = samples[i];
     }
 
-    if (sample_count == sender.samples_per_packet) {
-        // Check sender is still open before signaling (avoid race with stream removal)
-        if (!aes67_is_sender_open(sender)) {
-            sender.sample_count = 0;  // Reset on stream close
-            return;
+    uint32_t sample_count = sender.sample_count;
+    uint32_t samples_per_packet = sender.samples_per_packet;
+    size_t i = 0;
+
+#pragma unsafe arrays
+    while (i < len) {
+        if (sample_count == 0)
+            sender.pending_ts = timestamp;
+
+        for (; i < len && sample_count < samples_per_packet;
+             i++, sample_count++) {
+            tx_wrbuffer[id][sample_count] = samples[i];
         }
 
-        // we need to signal
-        sample_count = 0;
+        if (sample_count == samples_per_packet) {
+            // Check sender is still open before signaling
+            if (!aes67_is_sender_open(sender)) {
+                sender.sample_count = 0;
+                return;
+            }
 
-        unsafe {
-            uint32_t *unsafe &tmp = tx_wrbuffer[id];
-            data_ready <: id;
-            data_ready <: sender.pending_ts;
-            data_ready <: tmp;
+            sample_count = 0;
+
+            unsafe {
+                data_ready <: id;
+                data_ready <: sender.pending_ts;
+                data_ready <: (uint32_t *unsafe)tx_wrbuffer[id];
+                uint32_t *unsafe new_wrbuf;
+                data_ready :> new_wrbuf;
+                uint32_t *movable tmp = (uint32_t *movable)new_wrbuf;
+                tx_wrbuffer[id] = move(tmp);
+            }
         }
     }
 
