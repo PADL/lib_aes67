@@ -186,8 +186,6 @@ aes67_rtp_receiver_unsafe(client xtcp_if i_xtcp,
 
                 // Find receiver with matching destination address
                 for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
-                    assert(receivers[id].socket.fd != -1 || receivers[id].socket.dest_addr != 0);
-
                     if (receivers[id].socket.fd == -1)
                         continue;
                     else if (dest_ip_host == xtcp_ipaddr_to_host_uint32(receivers[id].socket.dest_addr))
