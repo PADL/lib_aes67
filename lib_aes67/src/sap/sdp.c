@@ -200,7 +200,7 @@ static int sdp_parse_line(char *line, aes67_sdp_t *sdp, int line_num) {
     }
 
     if (line[1] != '=') {
-        aes67_warn("Line %d of SDP file is not an equals sign");
+        aes67_warn("Line %d of SDP file is not an equals sign", line_num);
         return 1;
     }
 
