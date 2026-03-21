@@ -215,8 +215,7 @@ void aes67_media_control(chanend media_control,
 
         ptp_current_grandmaster(time_source_info.ptp_id);
         time_source_info.ptp_domain = 0;
-        if (sync_lock)
-            time_source_info.flags |= AES67_TIME_SOURCE_INFO_PTP_LOCKED_FLAG;
+        time_source_info.flags = sync_lock ? AES67_TIME_SOURCE_INFO_PTP_LOCKED_FLAG : 0;
         time_source_info.reserved = 0;
         media_control <: time_source_info;
         break;
