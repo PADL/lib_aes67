@@ -599,7 +599,7 @@ static aes67_status_t stop_streaming(chanend media_control, int32_t id) {
         return AES67_STATUS_INVALID_STREAM_ID;
     }
 
-    if (sdp_is_advertising(id)) {
+    if (!sdp_is_advertising(id)) {
         return AES67_STREAM_NOT_ADVERTISED;
     }
 
