@@ -365,7 +365,7 @@ aes67_raw_send_rtp(const uint8_t src_mac_addr[MACADDR_NUM_BYTES],
 
     size_t total_packet_len = aes67_rtp_packet_length_raw(packet);
 
-    __aes67_rtp_send_hp_packet(c_eth_tx_hp, (uint8_t *)packet, total_packet_len);
+    __aes67_rtp_send_hp_packet(c_eth_tx_hp, aes67_rtp_packet_start_raw(packet), total_packet_len);
 
     return AES67_STATUS_OK;
 }
