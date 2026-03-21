@@ -430,7 +430,7 @@ aes67_sdp_to_string(const aes67_sdp_t *sdp, char *buffer, size_t buflen) {
                        "a=keywds:XMOS\r\n"
                        "m=audio %s RTP/AVP %d\r\n"
                        "i=%s\r\n"
-                       "a=recvonly\r\n"
+                       "a=sendonly\r\n"
                        "a=rtpmap:%d L%d/%d/%d\r\n"
                        "a=ptime:%f\r\n"
                        "a=ts-refclk:ptp=IEEE1588-2008:%s%s\r\n"
