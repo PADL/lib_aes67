@@ -127,7 +127,7 @@ aes67_send_rtp_packet(CLIENT_INTERFACE(xtcp_if, i_xtcp),
 
             switch (stream_info->encoding) {
             case AES67_ENCODING_L16:
-                *((uint16_t *)payload_ptr) = htons(sample);
+                *((uint16_t *)payload_ptr) = htons(sample >> 16);
                 break;
             case AES67_ENCODING_L24:
                 payload_ptr[0] = (sample & 0xff000000) >> 24;
