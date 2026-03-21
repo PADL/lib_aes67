@@ -61,14 +61,6 @@ aes67_poll_stream_info_changed(uint32_t time,
     src_ipaddr_changed = 0;
 }
 
-#define swapPointer(__dst, __src)        \
-    do {                                 \
-        uint32_t *movable tmp;           \
-        tmp = move(__src);               \
-        __src = move(__dst);             \
-        __dst = move(tmp);               \
-    } while (0)
-
 void
 aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
                  CLIENT_INTERFACE(ethernet_cfg_if?, i_eth_cfg),
@@ -109,16 +101,19 @@ aes67_rtp_sender(CLIENT_INTERFACE(xtcp_if, i_xtcp),
         [[ordered]]
         select {
             case data_ready :> int32_t id:
-                uint32_t *movable &tmp;
                 uint32_t timestamp;
                 aes67_sender_t *unsafe sender = aes67_get_sender(id);
                 uint32_t samples_per_packet;
 
                 // synchronization point: swap double buffers
                 data_ready :> timestamp;
-                data_ready :> tmp;
-
-                swapPointer(tx_rdbuffer[id], tmp);
+                unsafe {
+                    uint32_t *unsafe new_buf;
+                    data_ready :> new_buf;
+                    data_ready <: (uint32_t *unsafe)tx_rdbuffer[id];
+                    uint32_t *movable tmp = (uint32_t *movable)new_buf;
+                    tx_rdbuffer[id] = move(tmp);
+                }
 
 #if NUM_AES67_RECEIVERS == 0
                 aes67_update_sender_media_clock_info(timestamp);
