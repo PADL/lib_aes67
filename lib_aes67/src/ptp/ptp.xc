@@ -1653,6 +1653,9 @@ void ptp_recv(client interface ethernet_tx_if ?i_eth,
 
         break;
     case PTP_PDELAY_RESP_FOLLOW_UP_MESG:
+        if (len < sizeof(ComMessageHdr) + sizeof(PdelayRespFollowUpMessage))
+            return;
+
         if (received_pdelay[src_port]) {
             if (received_pdelay_id[src_port] == ntoh16(msg->sequenceId) &&
                 source_port_identity_equal(
