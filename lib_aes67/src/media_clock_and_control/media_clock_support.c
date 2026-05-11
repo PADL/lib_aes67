@@ -67,10 +67,26 @@ wordlen_40_24_to_wordlen_16_16(uint64_t w_40_24) {
 
 // calculates expected local wordlen (sample period) for a given rate,
 // expressed as a 40.24 fixed point integer.
+//
+// the XMOS-generated PLL reference output is driven from this wordlen.
+// the external PLL (CS2600) is reprogrammed with a different MCLK ratio
+// for each sample rate, so the reference output must stay at the family
+// base rate (48 kHz or 44.1 kHz) regardless of the actual stream rate.
+// otherwise the ref toggles at 2x/4x at 96k/192k and the PLL multiplier
+// no longer produces the expected MCLK.
 static inline uint64_t
 calculate_wordlen_40_24(uint32_t sample_rate) {
     const uint64_t timer_ticks_per_second = ((uint64_t)TIMER_TICKS_PER_SEC << WORDLEN_FRACTIONAL_BITS);
-    return (timer_ticks_per_second / sample_rate);
+    uint32_t base_rate;
+
+    if ((sample_rate % 48000) == 0)
+        base_rate = 48000;
+    else if ((sample_rate % 44100) == 0)
+        base_rate = 44100;
+    else
+        base_rate = sample_rate;
+
+    return (timer_ticks_per_second / base_rate);
 }
 
 void
