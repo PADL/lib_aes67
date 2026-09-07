@@ -122,10 +122,81 @@ typedef struct _aes67_media_clock_info {
     uint32_t unlock_counter;
 } aes67_media_clock_info_t;
 
+#define AES67_SESSION_NAME_MAX 32
+// the longest SDP string handled; hosts size their SDP transfers by it
+#ifndef AES67_SDP_MAX_LEN
+#define AES67_SDP_MAX_LEN (1024)
+#endif
+typedef char aes67_session_name_t[AES67_SESSION_NAME_MAX];
+
+typedef enum _aes67_stream_state {
+    // the stream is not sending or receiving
+    AES67_STREAM_STATE_DISABLED = 0,
+    // the stream info is being updated; the rest of the fields are invalid
+    AES67_STREAM_STATE_UPDATING,
+    // a receiver stream is configured but not yet streaming
+    AES67_STREAM_STATE_POTENTIAL,
+    // the stream is sending or receiving
+    AES67_STREAM_STATE_ENABLED,
+} aes67_stream_state_t;
+
+/*
+ * A receiver or sender slot as a host sees it: the session it is subscribed
+ * to (or advertising) and the stream parameters in effect. The layout is
+ * fixed so it can be carried over a serial link unchanged.
+ */
+typedef struct _aes67_stream_endpoint_info {
+    uint8_t state;         // aes67_stream_state_t
+    uint8_t sample_size;   // bytes per sample
+    uint8_t channel_count;
+    uint8_t payload_type;
+    uint32_t sample_rate;
+    uint32_t packet_time_us;
+    uint8_t src_addr[4];
+    uint8_t dest_addr[4];
+    uint16_t dest_port;
+    uint16_t reserved;
+    uint32_t clock_offset;
+    uint8_t gm_id[8];
+    aes67_session_name_t session_name;
+} aes67_stream_endpoint_info_t;
+
+typedef struct _aes67_network_info {
+    uint8_t ipaddr[4];
+    uint8_t netmask[4];
+    uint8_t gateway[4];
+    uint8_t link_up;
+    uint8_t reserved[3];
+} aes67_network_info_t;
+
+/*
+ * A SAP announcement or deletion seen on the network, whether or not any
+ * receiver is subscribed to it; hosts build their stream directories from these.
+ */
+typedef struct _aes67_sap_announcement {
+    uint8_t message_type;  // aes67_sap_message_type_t
+    uint8_t channel_count;
+    uint8_t sample_size;   // bytes per sample
+    uint8_t payload_type;
+    uint32_t sample_rate;
+    uint32_t packet_time_us;
+    uint8_t origin_addr[4];
+    uint8_t dest_addr[4];
+    uint16_t dest_port;
+    uint16_t ptp_domain;
+    uint32_t clock_offset;
+    uint8_t gm_id[8];
+    aes67_session_name_t session_name;
+} aes67_sap_announcement_t;
+
 typedef enum _aes67_event_type {
     AES67_EVENT_NOOP = 0,
     AES67_EVENT_TIME_SOURCE_INFO,
-    AES67_EVENT_MEDIA_CLOCK_INFO
+    AES67_EVENT_MEDIA_CLOCK_INFO,
+    AES67_EVENT_RECEIVER_INFO,
+    AES67_EVENT_SENDER_INFO,
+    AES67_EVENT_NETWORK_INFO,
+    AES67_EVENT_SAP_ANNOUNCEMENT
 } aes67_event_type_t;
 
 typedef struct _aes67_event_info {
@@ -133,6 +204,13 @@ typedef struct _aes67_event_info {
     union {
         aes67_time_source_info_t time_source_info;
         aes67_media_clock_info_t media_clock_info;
+        struct {
+            int16_t id;
+            int16_t reserved;
+            aes67_stream_endpoint_info_t info;
+        } stream_endpoint_info;
+        aes67_network_info_t network_info;
+        aes67_sap_announcement_t sap_announcement;
     } u;
 } aes67_event_info_t;
 
@@ -171,6 +249,12 @@ interface aes67_interface {
     aes67_status_t get_media_clock_info(aes67_media_clock_info_t &info);
 
     aes67_status_t set_sample_rate(uint32_t rate);
+    aes67_status_t get_receiver_info(int16_t id, aes67_stream_endpoint_info_t &info);
+    aes67_status_t get_sender_info(int16_t id, aes67_stream_endpoint_info_t &info);
+    // the SDP in effect for a subscribed receiver / advertising sender, else ""
+    aes67_status_t get_receiver_sdp(int16_t id, char sdp[len], size_t len);
+    aes67_status_t get_sender_sdp(int16_t id, char sdp[len], size_t len);
+    aes67_status_t get_network_info(aes67_network_info_t &info);
 
     // events
     [[notification]] slave void event_ready();

@@ -136,8 +136,6 @@ static inline int popcount(uint32_t x) {
 #define DSCP_RTP DSCP_AF41
 #endif // AES67_DANTE_DSCP_COMPAT
 
-typedef char aes67_session_name_t[32];
-
 static inline int is_valid_receiver_id(int32_t id) {
     return id >= 0 && id < NUM_AES67_RECEIVERS;
 }
@@ -145,17 +143,6 @@ static inline int is_valid_receiver_id(int32_t id) {
 static inline int is_valid_sender_id(int32_t id) {
     return id >= 0 && id < NUM_AES67_SENDERS;
 }
-
-typedef enum _aes67_stream_state {
-    // the stream is not sending or receiving
-    AES67_STREAM_STATE_DISABLED = 0,
-    // the stream info is being updated; the rest of the fields are invalid
-    AES67_STREAM_STATE_UPDATING,
-    // a receiver stream is configured but not yet streaming
-    AES67_STREAM_STATE_POTENTIAL,
-    // the stream is sending or receiving
-    AES67_STREAM_STATE_ENABLED,
-} aes67_stream_state_t;
 
 typedef enum _aes67_media_clock_state {
     AES67_MEDIA_CLOCK_STATE_DISABLED = 0,
@@ -172,6 +159,8 @@ typedef enum _aes67_media_control_command {
     AES67_MEDIA_CONTROL_COMMAND_START_STREAMING,
     AES67_MEDIA_CONTROL_COMMAND_STOP_STREAMING,
     AES67_MEDIA_CONTROL_COMMAND_SET_SAMPLE_RATE,
+    AES67_MEDIA_CONTROL_COMMAND_GET_RECEIVER_STREAM_INFO,
+    AES67_MEDIA_CONTROL_COMMAND_GET_SENDER_STREAM_INFO,
 } aes67_media_control_command_t;
 
 typedef struct _aes67_stream_info {

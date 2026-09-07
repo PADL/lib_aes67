@@ -29,10 +29,12 @@
 
 #define AES67_SDP_MIME_TYPE "application/sdp"
 #define AES67_SDP_MIME_TYPE_LEN (sizeof("application/sdp") - 1)
+#ifndef AES67_SDP_MAX_LEN
 #ifdef AES67_XMOS
 #define AES67_SDP_MAX_LEN (1024)
 #else
 #define AES67_SDP_MAX_LEN (2048)
+#endif
 #endif
 
 #define AES67_SAP_MAX_HEADER (36)

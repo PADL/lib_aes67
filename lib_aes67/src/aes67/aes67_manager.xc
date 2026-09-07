@@ -15,6 +15,31 @@ static const xtcp_ipaddr_t sap_mcast_group = {239, 255, 255, 255};
 static const n64_t zero_n64;
 static uint32_t sample_rate = AES67_DEFAULT_SAMPLE_RATE;
 
+/*
+ * Event state for hosts: the last values handed out, so only changes are
+ * reported, plus a small queue of SAP announcements. The IO task is polled
+ * once a second; the UART only carries what changed.
+ */
+#define AES67_STATUS_POLL_TIME (XS1_TIMER_HZ) // 1 second
+#define AES67_SAP_ANNOUNCEMENT_QUEUE_LEN 4
+
+static uint32_t pending_events = 0;
+static uint32_t pending_receiver_events = 0;
+static uint32_t pending_sender_events = 0;
+static aes67_time_source_info_t last_time_source_info;
+static aes67_media_clock_info_t last_media_clock_info;
+static aes67_stream_endpoint_info_t last_receiver_info[NUM_AES67_RECEIVERS];
+#if (NUM_AES67_SENDERS != 0)
+static aes67_stream_endpoint_info_t last_sender_info[NUM_AES67_SENDERS];
+#endif
+static aes67_sap_announcement_t sap_announcement_queue[AES67_SAP_ANNOUNCEMENT_QUEUE_LEN];
+static size_t sap_announcement_head = 0;
+static size_t sap_announcement_count = 0;
+static uint8_t network_link_up = 0;
+
+static void sap_enqueue_announcement(aes67_sap_message_type_t message_type,
+                                     const aes67_sdp_t &sdp);
+
 #if AES67_FAST_CONNECT_ENABLED
 static void sdp_store_fast_connect_info(void);
 #endif
@@ -391,6 +416,7 @@ static aes67_status_t sap_handle_message(client xtcp_if i_xtcp,
         debug_printf("failed to parse SDP %s\n", sap.sdp);
         return status;
     }
+    sap_enqueue_announcement(sap.message_type, sdp);
 
 #pragma unsafe arrays
     for (id = 0; id < NUM_AES67_RECEIVERS; id++) {
@@ -428,10 +454,16 @@ static void sap_handle_event(client xtcp_if i_xtcp,
         sap_handle_message(i_xtcp, media_control, buf, nrecv, sap_timer_events);
         break;
     case XTCP_IFUP:
+        network_link_up = 1;
+        pending_events |= BIT(AES67_EVENT_NETWORK_INFO);
 #if AES67_FAST_CONNECT_ENABLED
         sdp_start_fast_connect(i_xtcp, media_control, sap_timer_events);
-        break;
 #endif
+        break;
+    case XTCP_IFDOWN:
+        network_link_up = 0;
+        pending_events |= BIT(AES67_EVENT_NETWORK_INFO);
+        break;
     default:
         break;
     }
@@ -611,6 +643,164 @@ static aes67_status_t stop_streaming(chanend media_control, int32_t id) {
     return AES67_STATUS_OK;
 }
 
+
+/*
+ * Host-facing status: endpoint info is the IO task's stream info plus the
+ * session name the manager holds for the slot.
+ */
+static void stream_info_to_endpoint_info(aes67_stream_endpoint_info_t &info,
+                                         const aes67_stream_info_t &stream_info,
+                                         const char session_name[]) {
+    size_t len;
+    memset(&info, 0, sizeof(info));
+    info.state = (uint8_t)stream_info.state;
+    info.sample_size = stream_info.sample_size;
+    info.channel_count = stream_info.channel_count;
+    info.payload_type = stream_info.payload_type;
+    info.sample_rate = stream_info.sample_rate;
+    info.packet_time_us = stream_info.packet_time_us;
+    memcpy(info.src_addr, stream_info.src_addr, sizeof(info.src_addr));
+    memcpy(info.dest_addr, stream_info.dest_addr, sizeof(info.dest_addr));
+    info.dest_port = stream_info.dest_port;
+    info.clock_offset = stream_info.clock_offset;
+    memcpy(info.gm_id, stream_info.gm_id.data, sizeof(info.gm_id));
+#pragma unsafe arrays
+    for (len = 0; session_name[len] && len < AES67_SESSION_NAME_MAX - 1; len++)
+        info.session_name[len] = session_name[len];
+    info.session_name[len] = '\0';
+}
+
+static void get_receiver_info_internal(chanend media_control,
+                                       int32_t id,
+                                       aes67_stream_endpoint_info_t &info) {
+    aes67_stream_info_t stream_info;
+    media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_RECEIVER_STREAM_INFO;
+    media_control <: id;
+    media_control :> stream_info;
+    stream_info_to_endpoint_info(info, stream_info, session_subscriptions[id]);
+}
+
+#if (NUM_AES67_SENDERS != 0)
+static void get_sender_info_internal(chanend media_control,
+                                     int32_t id,
+                                     aes67_stream_endpoint_info_t &info) {
+    aes67_stream_info_t stream_info;
+    media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_SENDER_STREAM_INFO;
+    media_control <: id;
+    media_control :> stream_info;
+    stream_info_to_endpoint_info(info, stream_info, sdp_advertisements[id].session_name);
+}
+#endif
+
+static void get_network_info_internal(client xtcp_if i_xtcp, aes67_network_info_t &info) {
+    xtcp_ipconfig_t ipconfig = i_xtcp.get_netif_ipconfig(0);
+    memset(&info, 0, sizeof(info));
+    memcpy(info.ipaddr, ipconfig.ipaddr, sizeof(info.ipaddr));
+    memcpy(info.netmask, ipconfig.netmask, sizeof(info.netmask));
+    memcpy(info.gateway, ipconfig.gateway, sizeof(info.gateway));
+    info.link_up = network_link_up;
+}
+
+/* Announcements are queued for the host; SAP repeats them, so a full queue drops. */
+static void sap_enqueue_announcement(aes67_sap_message_type_t message_type,
+                                     const aes67_sdp_t &sdp) {
+    aes67_sap_announcement_t announcement;
+    uint16_t dest_port = 0;
+    size_t slot;
+    if (sap_announcement_count == AES67_SAP_ANNOUNCEMENT_QUEUE_LEN)
+        return;
+    memset(&announcement, 0, sizeof(announcement));
+    announcement.message_type = (uint8_t)message_type;
+    announcement.channel_count = (uint8_t)sdp.channel_count;
+    announcement.sample_size = (uint8_t)(sdp.sample_size / 8);
+    announcement.payload_type = (uint8_t)sdp.payload_type;
+    announcement.sample_rate = sdp.sample_rate;
+    announcement.packet_time_us = (uint32_t)(sdp.packet_duration * 1000.0);
+    aes67_sdp_get_ipv4_session_origin(sdp, announcement.origin_addr);
+    aes67_sdp_get_ipv4_address(sdp, announcement.dest_addr);
+    aes67_sdp_get_ipv4_port(sdp, dest_port);
+    announcement.dest_port = dest_port;
+    announcement.ptp_domain = (uint16_t)aes67_sdp_get_ptp_domain(sdp);
+    announcement.clock_offset = sdp.clock_offset;
+    aes67_sdp_get_ptp_gmid(sdp, announcement.gm_id);
+    memcpy(announcement.session_name, sdp.session_name, sizeof(announcement.session_name));
+    slot = (sap_announcement_head + sap_announcement_count) % AES67_SAP_ANNOUNCEMENT_QUEUE_LEN;
+    memcpy(&sap_announcement_queue[slot], &announcement, sizeof(announcement));
+    sap_announcement_count++;
+    pending_events |= BIT(AES67_EVENT_SAP_ANNOUNCEMENT);
+}
+
+static int events_pending(void) {
+    return pending_events != 0 || pending_receiver_events != 0 ||
+           pending_sender_events != 0;
+}
+
+/* raised at the call sites so the interface array is not sliced */
+#define NOTIFY_CLIENTS_IF_PENDING()                                            \
+    do {                                                                       \
+        if (events_pending())                                                  \
+            for (size_t _i = 0; _i < num_aes67_clients; _i++)                  \
+                i_aes67[_i].event_ready();                                     \
+    } while (0)
+
+/* interface array parameters cannot be handed to functions, so SDPs are copied in place */
+#define COPY_SDP_STRING(sdp_struct, out, len, status)                          \
+    do {                                                                       \
+        char _local[AES67_SDP_MAX_LEN];                                        \
+        size_t _n = 0;                                                         \
+        status = aes67_sdp_to_string(sdp_struct, _local, sizeof(_local));      \
+        if (status == AES67_STATUS_OK) {                                       \
+            for (_n = 0; _n < len - 1 && _local[_n] != '\0'; _n++)             \
+                out[_n] = _local[_n];                                          \
+        }                                                                      \
+        out[_n] = '\0';                                                        \
+    } while (0)
+
+/* Once a second: pick up clock, time source and stream state changes from the IO task. */
+static void poll_status(chanend media_control) {
+    aes67_media_clock_info_t media_clock_info;
+    aes67_time_source_info_t time_source_info;
+    aes67_stream_endpoint_info_t info;
+
+    media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_CLOCK_INFO;
+    media_control :> media_clock_info;
+    if (memcmp(&media_clock_info, &last_media_clock_info, sizeof(media_clock_info)) != 0) {
+        memcpy(&last_media_clock_info, &media_clock_info, sizeof(media_clock_info));
+        pending_events |= BIT(AES67_EVENT_MEDIA_CLOCK_INFO);
+    }
+    media_control <: (uint8_t)AES67_MEDIA_CONTROL_COMMAND_GET_TIME_SOURCE_INFO;
+    media_control :> time_source_info;
+    if (memcmp(&time_source_info, &last_time_source_info, sizeof(time_source_info)) != 0) {
+        memcpy(&last_time_source_info, &time_source_info, sizeof(time_source_info));
+        pending_events |= BIT(AES67_EVENT_TIME_SOURCE_INFO);
+    }
+#pragma unsafe arrays
+    for (int32_t id = 0; id < NUM_AES67_RECEIVERS; id++) {
+        get_receiver_info_internal(media_control, id, info);
+        if (memcmp(&info, &last_receiver_info[id], sizeof(info)) != 0) {
+            memcpy(&last_receiver_info[id], &info, sizeof(info));
+            pending_receiver_events |= BIT(id);
+        }
+    }
+#if (NUM_AES67_SENDERS != 0)
+#pragma unsafe arrays
+    for (int32_t id = 0; id < NUM_AES67_SENDERS; id++) {
+        get_sender_info_internal(media_control, id, info);
+        if (memcmp(&info, &last_sender_info[id], sizeof(info)) != 0) {
+            memcpy(&last_sender_info[id], &info, sizeof(info));
+            pending_sender_events |= BIT(id);
+        }
+    }
+#endif
+}
+
+static int32_t first_set_bit(uint32_t bits) {
+    for (int32_t i = 0; i < 32; i++)
+        if (bits & BIT(i))
+            return i;
+    return -1;
+}
+
 [[combinable]] void
 aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
               size_t num_aes67_clients,
@@ -622,9 +812,8 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
     int sap_rx_socket = -1;
     int sap_tx_socket = -1;
     xtcp_error_code_t err;
-    uint32_t pending_events = 0;
-    aes67_time_source_info_t last_time_source_info;
-    aes67_media_clock_info_t last_media_clock_info;
+    timer status_timer;
+    int status_timeout;
     uint32_t sap_timer_events = 0;
 
 #if AES67_FAST_CONNECT_ENABLED
@@ -639,6 +828,7 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
     sdp_init_advertisements();
 
     sap_timer :> sap_timeout;
+    status_timer :> status_timeout;
 
     i_xtcp.join_multicast_group(sap_mcast_group);
 
@@ -662,6 +852,7 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
 
             event = i_xtcp.get_event(fd);
             sap_handle_event(i_xtcp, media_control, event, fd, sap_timer_events);
+            NOTIFY_CLIENTS_IF_PENDING();
             break;
 
         case i_aes67[size_t i].subscribe(int16_t id, const char session_name[])->aes67_status_t status:
@@ -760,7 +951,67 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             media_control :> _status;
             status = (aes67_status_t)_status;
             break;
+        case i_aes67[size_t i].get_receiver_info(int16_t id, aes67_stream_endpoint_info_t &info)->aes67_status_t status:
+            aes67_stream_endpoint_info_t local_info;
+            if (!is_valid_receiver_id(id)) {
+                status = AES67_STATUS_INVALID_STREAM_ID;
+                break;
+            }
+            get_receiver_info_internal(media_control, id, local_info);
+            info = local_info;
+            status = AES67_STATUS_OK;
+            break;
+        case i_aes67[size_t i].get_sender_info(int16_t id, aes67_stream_endpoint_info_t &info)->aes67_status_t status:
+#if (NUM_AES67_SENDERS != 0)
+            if (!is_valid_sender_id(id)) {
+                status = AES67_STATUS_INVALID_STREAM_ID;
+                break;
+            }
+            aes67_stream_endpoint_info_t local_info;
+            get_sender_info_internal(media_control, id, local_info);
+            info = local_info;
+            status = AES67_STATUS_OK;
+#else
+            status = AES67_STATUS_INVALID_STREAM_ID;
+#endif
+            break;
+        case i_aes67[size_t i].get_receiver_sdp(int16_t id, char sdp[len], size_t len)->aes67_status_t status:
+            if (!is_valid_receiver_id(id) || len == 0) {
+                status = AES67_STATUS_INVALID_STREAM_ID;
+                break;
+            }
+            if (sdp_is_subscribed(id)) {
+                COPY_SDP_STRING(sdp_subscriptions[id], sdp, len, status);
+            } else {
+                sdp[0] = '\0';
+                status = AES67_STATUS_OK;
+            }
+            break;
+        case i_aes67[size_t i].get_sender_sdp(int16_t id, char sdp[len], size_t len)->aes67_status_t status:
+#if (NUM_AES67_SENDERS != 0)
+            if (!is_valid_sender_id(id) || len == 0) {
+                status = AES67_STATUS_INVALID_STREAM_ID;
+                break;
+            }
+            if (sdp_is_advertising(id)) {
+                COPY_SDP_STRING(sdp_advertisements[id], sdp, len, status);
+            } else {
+                sdp[0] = '\0';
+                status = AES67_STATUS_OK;
+            }
+#else
+            status = AES67_STATUS_INVALID_STREAM_ID;
+#endif
+            break;
+        case i_aes67[size_t i].get_network_info(aes67_network_info_t &info)->aes67_status_t status:
+            aes67_network_info_t local_info;
+            get_network_info_internal(i_xtcp, local_info);
+            info = local_info;
+            status = AES67_STATUS_OK;
+            break;
         case i_aes67[size_t i].get_event_info()->aes67_event_info_t event_info:
+            int32_t id;
+            memset(&event_info, 0, sizeof(event_info));
             if (pending_events & BIT(AES67_EVENT_TIME_SOURCE_INFO)) {
                 event_info.event_type = AES67_EVENT_TIME_SOURCE_INFO;
                 event_info.u.time_source_info = last_time_source_info;
@@ -769,9 +1020,39 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
                 event_info.event_type = AES67_EVENT_MEDIA_CLOCK_INFO;
                 event_info.u.media_clock_info = last_media_clock_info;
                 pending_events &= ~BIT(AES67_EVENT_MEDIA_CLOCK_INFO);
+            } else if (pending_events & BIT(AES67_EVENT_NETWORK_INFO)) {
+                event_info.event_type = AES67_EVENT_NETWORK_INFO;
+                get_network_info_internal(i_xtcp, event_info.u.network_info);
+                pending_events &= ~BIT(AES67_EVENT_NETWORK_INFO);
+            } else if ((id = first_set_bit(pending_receiver_events)) >= 0) {
+                event_info.event_type = AES67_EVENT_RECEIVER_INFO;
+                event_info.u.stream_endpoint_info.id = (int16_t)id;
+                event_info.u.stream_endpoint_info.info = last_receiver_info[id];
+                pending_receiver_events &= ~BIT(id);
+#if (NUM_AES67_SENDERS != 0)
+            } else if ((id = first_set_bit(pending_sender_events)) >= 0) {
+                event_info.event_type = AES67_EVENT_SENDER_INFO;
+                event_info.u.stream_endpoint_info.id = (int16_t)id;
+                event_info.u.stream_endpoint_info.info = last_sender_info[id];
+                pending_sender_events &= ~BIT(id);
+#endif
+            } else if (sap_announcement_count != 0) {
+                event_info.event_type = AES67_EVENT_SAP_ANNOUNCEMENT;
+                event_info.u.sap_announcement = sap_announcement_queue[sap_announcement_head];
+                sap_announcement_head = (sap_announcement_head + 1) % AES67_SAP_ANNOUNCEMENT_QUEUE_LEN;
+                sap_announcement_count--;
+                if (sap_announcement_count == 0)
+                    pending_events &= ~BIT(AES67_EVENT_SAP_ANNOUNCEMENT);
             } else {
                 event_info.event_type = AES67_EVENT_NOOP;
             }
+            // one event per call; re-arm the client while more are waiting
+            NOTIFY_CLIENTS_IF_PENDING();
+            break;
+        case status_timer when timerafter(status_timeout) :> void:
+            poll_status(media_control);
+            NOTIFY_CLIENTS_IF_PENDING();
+            status_timeout += AES67_STATUS_POLL_TIME;
             break;
         case sap_timer when timerafter(sap_timeout) :> void:
             aes67_periodic(i_xtcp, media_control, sap_tx_socket, sap_timeout, sap_timer_events);

@@ -89,6 +89,10 @@ control_command_to_string(aes67_media_control_command_t command) {
         return "STOP_STREAMING";
     case AES67_MEDIA_CONTROL_COMMAND_SET_SAMPLE_RATE:
         return "SET_SAMPLE_RATE";
+    case AES67_MEDIA_CONTROL_COMMAND_GET_RECEIVER_STREAM_INFO:
+        return "GET_RECEIVER_STREAM_INFO";
+    case AES67_MEDIA_CONTROL_COMMAND_GET_SENDER_STREAM_INFO:
+        return "GET_SENDER_STREAM_INFO";
     default:
         return "UNKNOWN";
     }
@@ -230,6 +234,28 @@ void aes67_media_control(chanend media_control,
 
         media_control :> id;
         aes67_set_sender_stream_state(id, AES67_STREAM_STATE_DISABLED);
+        break;
+    case AES67_MEDIA_CONTROL_COMMAND_GET_RECEIVER_STREAM_INFO:
+        int32_t id;
+        aes67_stream_info_t stream_info;
+        media_control :> id;
+        if (id >= 0 && id < NUM_AES67_RECEIVERS)
+            stream_info = receiver_streams[id];
+        else
+            memset(&stream_info, 0, sizeof(stream_info));
+        media_control <: stream_info;
+        break;
+    case AES67_MEDIA_CONTROL_COMMAND_GET_SENDER_STREAM_INFO:
+        int32_t id;
+        aes67_stream_info_t stream_info;
+        media_control :> id;
+#if (NUM_AES67_SENDERS != 0)
+        if (id >= 0 && id < NUM_AES67_SENDERS)
+            stream_info = sender_streams[id];
+        else
+#endif
+            memset(&stream_info, 0, sizeof(stream_info));
+        media_control <: stream_info;
         break;
     case AES67_MEDIA_CONTROL_COMMAND_SET_SAMPLE_RATE:
         uint32_t rate;
