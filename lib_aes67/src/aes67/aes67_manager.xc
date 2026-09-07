@@ -701,14 +701,14 @@ static void get_network_info_internal(client xtcp_if i_xtcp, aes67_network_info_
     info.link_up = network_link_up;
 }
 
-/* Announcements are queued for the host; SAP repeats them, so a full queue drops. */
+/* Announcements are queued for the host. A queued message for the same session is
+ * superseded rather than duplicated, and a full queue drops the oldest entry: SAP
+ * repeats announcements but sends a deletion once. */
 static void sap_enqueue_announcement(aes67_sap_message_type_t message_type,
                                      const aes67_sdp_t &sdp) {
     aes67_sap_announcement_t announcement;
     uint16_t dest_port = 0;
-    size_t slot;
-    if (sap_announcement_count == AES67_SAP_ANNOUNCEMENT_QUEUE_LEN)
-        return;
+    size_t slot, i;
     memset(&announcement, 0, sizeof(announcement));
     announcement.message_type = (uint8_t)message_type;
     announcement.channel_count = (uint8_t)sdp.channel_count;
@@ -724,6 +724,23 @@ static void sap_enqueue_announcement(aes67_sap_message_type_t message_type,
     announcement.clock_offset = sdp.clock_offset;
     aes67_sdp_get_ptp_gmid(sdp, announcement.gm_id);
     memcpy(announcement.session_name, sdp.session_name, sizeof(announcement.session_name));
+    /* a session is identified by its SAP originating source and its name */
+    for (i = 0; i < sap_announcement_count; i++) {
+        slot = (sap_announcement_head + i) % AES67_SAP_ANNOUNCEMENT_QUEUE_LEN;
+        if (memcmp(sap_announcement_queue[slot].origin_addr, announcement.origin_addr,
+                   sizeof(announcement.origin_addr)) == 0 &&
+            memcmp(sap_announcement_queue[slot].session_name, announcement.session_name,
+                   sizeof(announcement.session_name)) == 0) {
+            memcpy(&sap_announcement_queue[slot], &announcement, sizeof(announcement));
+            pending_events |= BIT(AES67_EVENT_SAP_ANNOUNCEMENT);
+            return;
+        }
+    }
+
+    if (sap_announcement_count == AES67_SAP_ANNOUNCEMENT_QUEUE_LEN) {
+        sap_announcement_head = (sap_announcement_head + 1) % AES67_SAP_ANNOUNCEMENT_QUEUE_LEN;
+        sap_announcement_count--;
+    }
     slot = (sap_announcement_head + sap_announcement_count) % AES67_SAP_ANNOUNCEMENT_QUEUE_LEN;
     memcpy(&sap_announcement_queue[slot], &announcement, sizeof(announcement));
     sap_announcement_count++;
