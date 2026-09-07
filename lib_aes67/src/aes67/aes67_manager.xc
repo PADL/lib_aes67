@@ -864,8 +864,12 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             }
 
 #pragma unsafe arrays
-            for (len = 0; session_name[len]; len++)
+            for (len = 0; len < sizeof(session_subscriptions[id]) && session_name[len]; len++)
                 ;
+            if (len >= sizeof(session_subscriptions[id])) {
+                status = AES67_STATUS_OUT_OF_BUFFER_SPACE;
+                break;
+            }
             memcpy(session_subscriptions[id], session_name, len + 1);
             debug_printf("subscribing SAP session %s into receiver slot %d\n",
                          session_subscriptions[id], id);
@@ -913,7 +917,7 @@ aes67_manager(server interface aes67_interface i_aes67[num_aes67_clients],
             size_t len;
 
 #pragma unsafe arrays
-            for (len = 0; session_name[len]; len++)
+            for (len = 0; len < sizeof(_session_name) && session_name[len]; len++)
                 ;
             if (len >= sizeof(_session_name)) {
                 status = AES67_STATUS_OUT_OF_BUFFER_SPACE;
